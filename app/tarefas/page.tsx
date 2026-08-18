@@ -395,7 +395,7 @@ function textoRepeticao(
     tarefa.repeatMode ===
     "weekdays"
   ) {
-    return "Dias úteis";
+    return "Dias da semana";
   }
 
   if (
@@ -2143,7 +2143,7 @@ export default function TarefasPage() {
                     className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-600 transition hover:bg-[#F5F8FC]"
                   >
                     <span>
-                      Trocar cor
+                      Trocar avatar
                     </span>
 
                     <span
@@ -2306,9 +2306,7 @@ export default function TarefasPage() {
                       TAREFA
                     </label>
 
-                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
-                      obrigatório
-                    </span>
+                    <span className="text-[9px] font-black text-red-600">* obrigatório</span>
                   </div>
 
                   <input
@@ -2362,9 +2360,7 @@ export default function TarefasPage() {
                       REPETIÇÃO
                     </label>
 
-                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
-                      obrigatório
-                    </span>
+                    <span className="text-[9px] font-black text-red-600">* obrigatório</span>
                   </div>
 
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2482,7 +2478,7 @@ export default function TarefasPage() {
                             : "text-slate-600"
                         }`}
                       >
-                        Dias úteis
+                        Dias da semana
                       </p>
 
                       <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
@@ -2540,9 +2536,7 @@ export default function TarefasPage() {
                         </p>
                       </div>
 
-                      <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black text-[#E46611] shadow-sm">
-                        obrigatório
-                      </span>
+                      <span className="text-[9px] font-black text-red-600">* obrigatório</span>
                     </div>
 
                     <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">

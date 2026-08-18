@@ -147,6 +147,11 @@ export default function AprovacoesPage() {
   const [mensagemErro, setMensagemErro] =
     useState("");
 
+  const [
+    modoAprovacao,
+    setModoAprovacao,
+  ] = useState<"all" | "admin_only">("all");
+
   useEffect(() => {
     carregarAprovacoes();
   }, []);
@@ -192,6 +197,18 @@ export default function AprovacoesPage() {
           schema: "public",
           table: "players",
           filter: `game_id=eq.${gameId}`,
+        },
+        () => {
+          carregarAprovacoes(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "games",
+          filter: `id=eq.${gameId}`,
         },
         () => {
           carregarAprovacoes(true);
@@ -312,12 +329,51 @@ export default function AprovacoesPage() {
     );
 
     const {
+      data: partidaData,
+      error: erroPartida,
+    } = await supabase
+      .from("games")
+      .select(
+        "admin_profile_id, approval_mode, admin_approver_player_id"
+      )
+      .eq(
+        "id",
+        jogadorFormatado.gameId
+      )
+      .single();
+
+    if (
+      erroPartida ||
+      !partidaData
+    ) {
+      console.error(
+        "Erro ao carregar regra de aprovação:",
+        erroPartida
+      );
+
+      setMensagemErro(
+        "Não foi possível carregar a regra de aprovação da partida."
+      );
+
+      setCarregando(false);
+      return;
+    }
+
+    const modo =
+      partidaData.approval_mode ===
+      "admin_only"
+        ? "admin_only"
+        : "all";
+
+    setModoAprovacao(modo);
+
+    const {
       data: playersDaPartida,
       error: erroPlayersDaPartida,
     } = await supabase
       .from("players")
       .select(
-        "id, name, color, avatar"
+        "id, name, color, avatar, profile_id"
       )
       .eq(
         "game_id",
@@ -338,22 +394,61 @@ export default function AprovacoesPage() {
       return;
     }
 
-    const idsOutrosJogadores =
-      (
-        playersDaPartida || []
-      )
-        .filter(
-          (player) =>
-            player.id !==
-            jogadorFormatado.id
-        )
-        .map(
-          (player) =>
-            player.id
-        );
+    const jogadoresPartida =
+      playersDaPartida || [];
+
+    const adminPlayer =
+      jogadoresPartida.find(
+        (player) =>
+          player.profile_id ===
+          partidaData.admin_profile_id
+      ) || null;
+
+    let idsQuePossoAprovar: number[] =
+      [];
+
+    if (modo === "admin_only") {
+      if (
+        adminPlayer &&
+        jogadorFormatado.id ===
+          adminPlayer.id
+      ) {
+        idsQuePossoAprovar =
+          jogadoresPartida
+            .filter(
+              (player) =>
+                player.id !==
+                adminPlayer.id
+            )
+            .map(
+              (player) =>
+                player.id
+            );
+      } else if (
+        adminPlayer &&
+        partidaData.admin_approver_player_id ===
+          jogadorFormatado.id
+      ) {
+        idsQuePossoAprovar = [
+          adminPlayer.id,
+        ];
+      }
+    } else {
+      idsQuePossoAprovar =
+        jogadoresPartida
+          .filter(
+            (player) =>
+              player.id !==
+              jogadorFormatado.id
+          )
+          .map(
+            (player) =>
+              player.id
+          );
+    }
 
     if (
-      idsOutrosJogadores.length ===
+      idsQuePossoAprovar.length ===
       0
     ) {
       setSubmissoes([]);
@@ -378,7 +473,7 @@ export default function AprovacoesPage() {
       )
       .in(
         "player_id",
-        idsOutrosJogadores
+        idsQuePossoAprovar
       )
       .neq(
         "player_id",
@@ -580,7 +675,7 @@ export default function AprovacoesPage() {
 
     const { error } =
       await supabase.rpc(
-        "approve_submission",
+        "approve_submission_controlled",
         {
           p_submission_id:
             submissao.id,
@@ -685,7 +780,7 @@ export default function AprovacoesPage() {
 
     const { error } =
       await supabase.rpc(
-        "reject_submission",
+        "reject_submission_controlled",
         {
           p_submission_id:
             submissao.id,
@@ -1116,7 +1211,9 @@ export default function AprovacoesPage() {
           </p>
 
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-            O DoToWin usa validação entre jogadores. Você registra a comprovação da sua tarefa e outra pessoa da mesma partida decide se ela é válida. Só depois da aprovação o avanço acontece.
+            {modoAprovacao === "admin_only"
+              ? "Nesta partida, as aprovações estão centralizadas no admin. O admin aprova os demais jogadores e a pessoa escolhida por ele aprova as tarefas do admin."
+              : "O DoToWin usa validação entre jogadores. Você registra a comprovação da sua tarefa e outra pessoa da mesma partida decide se ela é válida. Só depois da aprovação o avanço acontece."}
           </p>
         </section>
       </div>

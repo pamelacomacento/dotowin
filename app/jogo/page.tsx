@@ -11,6 +11,7 @@ type Jogador = {
   cor: string;
   posicao: number;
   avatar: string | null;
+  profileId: string | null;
 };
 
 type Partida = {
@@ -21,6 +22,9 @@ type Partida = {
   premio: string | null;
   vencedorJogadorId: number | null;
   finalizadaEm: string | null;
+  adminProfileId: string | null;
+  approvalMode: "all" | "admin_only";
+  adminApproverPlayerId: number | null;
 };
 
 type ModoRepeticao =
@@ -1111,6 +1115,11 @@ export default function Home() {
     setMostrarAvanco,
   ] = useState(false);
 
+  const [
+    salvandoAprovacao,
+    setSalvandoAprovacao,
+  ] = useState(false);
+
   const posicaoAnteriorRef =
     useRef<number | null>(null);
 
@@ -1195,6 +1204,20 @@ export default function Home() {
       supabase.removeChannel(
         canal
       );
+    };
+  }, [partida?.id]);
+
+  useEffect(() => {
+    if (!partida?.id) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      carregarPartida(true);
+    }, 2000);
+
+    return () => {
+      window.clearInterval(timer);
     };
   }, [partida?.id]);
 
@@ -1458,7 +1481,7 @@ export default function Home() {
       supabase
         .from("games")
         .select(
-          "id, name, code, total_spaces, prize, winner_player_id, finished_at"
+          "id, name, code, total_spaces, prize, winner_player_id, finished_at, admin_profile_id, approval_mode, admin_approver_player_id"
         )
         .eq("id", gameId)
         .single(),
@@ -1466,7 +1489,7 @@ export default function Home() {
       supabase
         .from("players")
         .select(
-          "id, name, color, position, game_id, avatar"
+          "id, name, color, position, game_id, avatar, profile_id"
         )
         .eq(
           "game_id",
@@ -1583,6 +1606,17 @@ export default function Home() {
         finalizadaEm:
           partidaData.finished_at ||
           null,
+        adminProfileId:
+          partidaData.admin_profile_id ||
+          null,
+        approvalMode:
+          partidaData.approval_mode ===
+          "admin_only"
+            ? "admin_only"
+            : "all",
+        adminApproverPlayerId:
+          partidaData.admin_approver_player_id ||
+          null,
       };
 
     const jogadoresDoBanco: Jogador[] =
@@ -1611,6 +1645,9 @@ export default function Home() {
           )
             ? item.avatar
             : null,
+        profileId:
+          item.profile_id ||
+          null,
       }));
 
     const tarefasDoBanco =
@@ -1729,25 +1766,66 @@ export default function Home() {
         }
       ).length;
 
-    const idsOutrosJogadores =
-      (
-        jogadoresData || []
-      )
-        .filter(
-          (jogador) =>
-            jogador.id !==
-            playerId
-        )
-        .map(
-          (jogador) =>
-            jogador.id
-        );
+    const jogadoresBrutos =
+      jogadoresData || [];
+
+    const adminPlayer =
+      jogadoresBrutos.find(
+        (jogador) =>
+          jogador.profile_id ===
+          partidaData.admin_profile_id
+      ) || null;
+
+    let idsAprovaveis: number[] =
+      [];
+
+    if (
+      partidaData.approval_mode ===
+      "admin_only"
+    ) {
+      if (
+        adminPlayer &&
+        playerId === adminPlayer.id
+      ) {
+        idsAprovaveis =
+          jogadoresBrutos
+            .filter(
+              (jogador) =>
+                jogador.id !==
+                adminPlayer.id
+            )
+            .map(
+              (jogador) =>
+                jogador.id
+            );
+      } else if (
+        adminPlayer &&
+        partidaData.admin_approver_player_id ===
+          playerId
+      ) {
+        idsAprovaveis = [
+          adminPlayer.id,
+        ];
+      }
+    } else {
+      idsAprovaveis =
+        jogadoresBrutos
+          .filter(
+            (jogador) =>
+              jogador.id !==
+              playerId
+          )
+          .map(
+            (jogador) =>
+              jogador.id
+          );
+    }
 
     let quantidadeAprovacoes =
       0;
 
     if (
-      idsOutrosJogadores.length >
+      idsAprovaveis.length >
       0
     ) {
       const {
@@ -1769,7 +1847,7 @@ export default function Home() {
         )
         .in(
           "player_id",
-          idsOutrosJogadores
+          idsAprovaveis
         );
 
       if (
@@ -1806,6 +1884,49 @@ export default function Home() {
     );
 
     setCarregando(false);
+  }
+
+  async function configurarAprovacao(
+    modo: "all" | "admin_only",
+    aprovadorDoAdmin: number | null
+  ) {
+    if (!partida) {
+      return;
+    }
+
+    setSalvandoAprovacao(true);
+    setMensagemErro("");
+
+    const { error } =
+      await supabase.rpc(
+        "configure_game_approval",
+        {
+          p_game_id: partida.id,
+          p_mode: modo,
+          p_admin_approver_player_id:
+            modo === "admin_only"
+              ? aprovadorDoAdmin
+              : null,
+        }
+      );
+
+    if (error) {
+      console.error(
+        "Erro ao configurar aprovações:",
+        error
+      );
+
+      setMensagemErro(
+        error.message ||
+          "Não foi possível salvar a regra de aprovação."
+      );
+
+      setSalvandoAprovacao(false);
+      return;
+    }
+
+    await carregarPartida(true);
+    setSalvandoAprovacao(false);
   }
 
   async function copiarCodigo() {
@@ -1905,6 +2026,21 @@ export default function Home() {
         jogador.id ===
         jogadorAtualId
     ) || null;
+
+  const souAdmin =
+    Boolean(
+      jogadorAtual?.profileId &&
+        partida?.adminProfileId &&
+        jogadorAtual.profileId ===
+          partida.adminProfileId
+    );
+
+  const aprovadoresPossiveisDoAdmin =
+    jogadores.filter(
+      (jogador) =>
+        jogador.id !==
+          jogadorAtualId
+    );
 
   const estaNaFrente =
     jogadorAtual &&
@@ -2775,6 +2911,116 @@ export default function Home() {
               </div>
             </section>
 
+            {souAdmin &&
+              jogadores.length >= 3 && (
+              <section className="mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
+                <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">
+                  QUEM APROVA AS TAREFAS?
+                </p>
+
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                  Com 3 ou mais jogadores, escolha como as tarefas serão validadas.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={salvandoAprovacao}
+                    onClick={() =>
+                      configurarAprovacao(
+                        "all",
+                        null
+                      )
+                    }
+                    className={`rounded-[22px] border-2 p-4 text-left transition ${
+                      partida?.approvalMode ===
+                      "all"
+                        ? "border-[#22C7D9] bg-[#EAF8FB]"
+                        : "border-[#E8EEF5] bg-[#F8FBFE]"
+                    }`}
+                  >
+                    <p className="text-sm font-black">
+                      Todos aprovam
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                      Qualquer outro jogador pode aprovar ou rejeitar.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      salvandoAprovacao ||
+                      aprovadoresPossiveisDoAdmin.length ===
+                        0
+                    }
+                    onClick={() =>
+                      configurarAprovacao(
+                        "admin_only",
+                        partida?.adminApproverPlayerId ||
+                          aprovadoresPossiveisDoAdmin[0]?.id ||
+                          null
+                      )
+                    }
+                    className={`rounded-[22px] border-2 p-4 text-left transition ${
+                      partida?.approvalMode ===
+                      "admin_only"
+                        ? "border-[#8B5CF6] bg-[#F1ECFF]"
+                        : "border-[#E8EEF5] bg-[#F8FBFE]"
+                    }`}
+                  >
+                    <p className="text-sm font-black">
+                      Só o admin aprova
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                      O admin aprova os demais e escolhe quem aprova as tarefas dele.
+                    </p>
+                  </button>
+                </div>
+
+                {partida?.approvalMode ===
+                  "admin_only" && (
+                  <div className="mt-4 rounded-[22px] bg-[#F8FBFE] p-4">
+                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                      QUEM APROVA AS TAREFAS DO ADMIN?
+                    </label>
+
+                    <select
+                      value={
+                        partida.adminApproverPlayerId ||
+                        ""
+                      }
+                      disabled={salvandoAprovacao}
+                      onChange={(event) =>
+                        configurarAprovacao(
+                          "admin_only",
+                          Number(
+                            event.target.value
+                          )
+                        )
+                      }
+                      className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#8B5CF6]"
+                    >
+                      <option value="">
+                        Escolha um jogador
+                      </option>
+
+                      {aprovadoresPossiveisDoAdmin.map(
+                        (jogador) => (
+                          <option
+                            key={jogador.id}
+                            value={jogador.id}
+                          >
+                            {jogador.nome}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                )}
+              </section>
+            )}
+
             <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
             <aside className="hidden xl:block">
               <div className="mb-3 flex items-center justify-between">
@@ -2897,7 +3143,7 @@ export default function Home() {
                               }}
                             />
 
-                            Trocar cor
+                            Trocar avatar
                           </Link>
                         )}
                       </div>
@@ -3149,7 +3395,7 @@ export default function Home() {
                                 }}
                               />
 
-                              Trocar cor
+                              Trocar avatar
                             </Link>
                           )}
                         </div>

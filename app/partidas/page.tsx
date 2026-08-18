@@ -700,7 +700,7 @@ export default function PartidasPage() {
           </h1>
 
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
-            Continue uma corrida, crie uma nova partida ou entre com o código de alguém.
+            Veja uma corrida, crie uma nova partida ou entre com o código de alguém.
           </p>
         </section>
 
@@ -748,9 +748,7 @@ export default function PartidasPage() {
                   NOME DA PARTIDA
                 </label>
 
-                <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
-                  obrigatório
-                </span>
+                <span className="text-[9px] font-black text-red-600">* obrigatório</span>
               </div>
 
               <input
@@ -812,9 +810,7 @@ export default function PartidasPage() {
                       TAMANHO DA CORRIDA
                     </label>
 
-                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
-                      obrigatório
-                    </span>
+                    <span className="text-[9px] font-black text-red-600">* obrigatório</span>
                   </div>
 
                   <p className="mt-1 text-xs text-slate-500">
@@ -920,9 +916,7 @@ export default function PartidasPage() {
                       QUANTIDADE PERSONALIZADA
                     </label>
 
-                    <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-[#8B5CF6] shadow-sm">
-                      obrigatório
-                    </span>
+                    <span className="text-[9px] font-black text-red-600">* obrigatório</span>
                   </div>
 
                   <div className="mt-3 flex items-center gap-3">
@@ -1051,9 +1045,7 @@ export default function PartidasPage() {
                   CÓDIGO DA PARTIDA
                 </label>
 
-                <span className="rounded-full bg-[#F1ECFF] px-2 py-1 text-[8px] font-black text-[#8B5CF6]">
-                  obrigatório
-                </span>
+                <span className="text-[9px] font-black text-red-600">* obrigatório</span>
               </div>
 
               <input
@@ -1276,7 +1268,7 @@ export default function PartidasPage() {
 
                       <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
                         <span className="text-xs font-black text-slate-500">
-                          Continuar corrida
+                          Ver corrida
                         </span>
 
                         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EAF8FB] text-[#22C7D9] transition group-hover:translate-x-1">
