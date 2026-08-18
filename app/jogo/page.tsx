@@ -2300,6 +2300,16 @@ export default function Home() {
                     }
                   )}
                 </div>
+
+                {estaNaFrente && (
+                  <div className="mt-4 overflow-hidden rounded-[24px] bg-white shadow-[0_8px_26px_rgba(15,23,42,.05)]">
+                    <img
+                      src="/happy-iguana.png"
+                      alt="Happy Iguana — você está na frente, continue assim!"
+                      className="block h-auto w-full object-contain"
+                    />
+                  </div>
+                )}
               </div>
             </section>
           </div>
