@@ -299,7 +299,7 @@ export default function PartidasPage() {
 
     if (
       arredondado < 10 ||
-      arredondado > 100
+      arredondado > 300
     ) {
       return null;
     }
@@ -338,7 +338,7 @@ export default function PartidasPage() {
 
     if (!totalEscolhido) {
       setMensagemErro(
-        "Escolha entre 10 e 100 casas."
+        "Escolha entre 10 e 300 casas."
       );
       return;
     }
@@ -841,7 +841,7 @@ export default function PartidasPage() {
                     <input
                       type="number"
                       min={10}
-                      max={100}
+                      max={300}
                       value={
                         totalPersonalizado
                       }
@@ -858,7 +858,7 @@ export default function PartidasPage() {
                     />
 
                     <div className="shrink-0 text-xs font-bold text-slate-400">
-                      10 a 100
+                      10 a 300
                     </div>
                   </div>
                 </div>
@@ -1263,7 +1263,7 @@ export default function PartidasPage() {
                   ""
                 );
               }}
-              className="mt-6 w-full rounded-2xl bg-[#8B5CF6] px-5 py-3.5 text-sm font-black text-white shadow-[0_10px_22px_rgba(139,92,246,.14)] transition hover:-translate-y-0.5"
+              className="mt-6 w-full rounded-2xl bg-[#8B5CF6] px-6 py-3.5 text-sm font-black text-white shadow-[0_10px_22px_rgba(139,92,246,.14)] transition hover:-translate-y-0.5"
             >
               Entrar com código
             </button>

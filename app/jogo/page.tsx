@@ -1277,7 +1277,9 @@ export default function Home() {
 
         return (
           !status ||
-          status === "Pendente"
+          status === "Pendente" ||
+          status === "rejected" ||
+          status === "Rejeitada"
         );
       }).length;
 
@@ -1312,9 +1314,12 @@ export default function Home() {
           count: "exact",
           head: true,
         })
-        .eq(
+        .in(
           "status",
-          "Aguardando aprovação"
+          [
+            "waiting",
+            "Aguardando aprovação",
+          ]
         )
         .in(
           "player_id",
