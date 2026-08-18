@@ -1434,7 +1434,7 @@ export default function Home() {
       playerId
     );
 
-    carregarEventos(gameId);
+    carregarEventos(gameId as number);
 
     const [
       {
