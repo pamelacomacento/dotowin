@@ -1163,7 +1163,7 @@ export default function Home() {
           filter: `game_id=eq.${gameId}`,
         },
         () => {
-          carregarEventos(gameId);
+          carregarEventos(gameId as number);
         }
       )
       .on(
@@ -1220,15 +1220,25 @@ export default function Home() {
     }
 
     setEventos(
-      (data || []).map((item) => ({
-        id: item.id,
-        tipo: item.event_type,
-        atorId: item.actor_player_id,
-        alvoId: item.target_player_id,
-        tarefaId: item.task_id,
-        posicao: item.position,
-        criadoEm: item.created_at,
-      }))
+      (data || []).map(
+        (item: {
+          id: number;
+          event_type: string;
+          actor_player_id: number | null;
+          target_player_id: number | null;
+          task_id: number | null;
+          position: number | null;
+          created_at: string;
+        }) => ({
+          id: item.id,
+          tipo: item.event_type,
+          atorId: item.actor_player_id,
+          alvoId: item.target_player_id,
+          tarefaId: item.task_id,
+          posicao: item.position,
+          criadoEm: item.created_at,
+        })
+      )
     );
   }
 
