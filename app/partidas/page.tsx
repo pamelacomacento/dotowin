@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Partida = {
@@ -81,6 +81,7 @@ function PeaoMini({
 
 export default function PartidasPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [partidas, setPartidas] =
     useState<Partida[]>([]);
@@ -98,6 +99,9 @@ export default function PartidasPage() {
     useState(false);
 
   const [nomeNovaPartida, setNomeNovaPartida] =
+    useState("");
+
+  const [premioNovaPartida, setPremioNovaPartida] =
     useState("");
 
   const [criandoPartida, setCriandoPartida] =
@@ -130,6 +134,24 @@ export default function PartidasPage() {
   useEffect(() => {
     carregarPartidas();
   }, []);
+
+  useEffect(() => {
+    const codigoDoLink = searchParams
+      .get("codigo")
+      ?.trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 5);
+
+    if (!codigoDoLink) {
+      return;
+    }
+
+    setCodigoEntrada(codigoDoLink);
+    setMostrarCriacao(false);
+    setMostrarEntrada(true);
+    setMensagemErro("");
+  }, [searchParams]);
 
   async function carregarPartidas() {
     setCarregando(true);
@@ -316,6 +338,7 @@ export default function PartidasPage() {
   function limparCriacao() {
     setMostrarCriacao(false);
     setNomeNovaPartida("");
+    setPremioNovaPartida("");
     setTotalCasas(30);
     setModoPersonalizado(false);
     setTotalPersonalizado("30");
@@ -418,6 +441,9 @@ export default function PartidasPage() {
           status: "active",
           total_spaces:
             totalEscolhido,
+          prize:
+            premioNovaPartida.trim() ||
+            null,
         })
         .select(
           "id, name, code, total_spaces"
@@ -689,7 +715,7 @@ export default function PartidasPage() {
                 </h2>
 
                 <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
-                  Escolha o nome e quantas aprovações serão necessárias para chegar à vitória.
+                  Escolha o nome, o prêmio e quantas aprovações serão necessárias para chegar à vitória.
                 </p>
               </div>
 
@@ -736,6 +762,38 @@ export default function PartidasPage() {
                 autoFocus
                 className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 font-bold text-[#1F2937] outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
               />
+            </div>
+
+            <div className="mt-7">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                  PRÊMIO DA VITÓRIA
+                </label>
+
+                <span className="rounded-full bg-[#F1ECFF] px-2 py-1 text-[8px] font-black text-[#8B5CF6]">
+                  opcional
+                </span>
+              </div>
+
+              <input
+                value={
+                  premioNovaPartida
+                }
+                onChange={(
+                  event
+                ) =>
+                  setPremioNovaPartida(
+                    event.target.value
+                  )
+                }
+                placeholder="Ex.: almoço pago pelos adversários"
+                maxLength={120}
+                className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 font-bold text-[#1F2937] outline-none transition placeholder:text-slate-300 focus:border-[#8B5CF6]"
+              />
+
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                Vale qualquer recompensa combinada entre vocês. Se não quiser prêmio, pode deixar em branco.
+              </p>
             </div>
 
             <div className="mt-7">

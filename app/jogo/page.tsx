@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -18,6 +18,9 @@ type Partida = {
   nome: string;
   codigo: string;
   totalCasas: number;
+  premio: string | null;
+  vencedorJogadorId: number | null;
+  finalizadaEm: string | null;
 };
 
 type ModoRepeticao =
@@ -38,6 +41,17 @@ type SubmissaoJogador = {
   task_id: number;
   status: string;
   occurrence_date: string | null;
+  created_at: string;
+};
+
+type EventoJogo = {
+  id: number;
+  tipo: string;
+  atorId: number | null;
+  alvoId: number | null;
+  tarefaId: number | null;
+  posicao: number | null;
+  criadoEm: string;
 };
 
 function horaEmMinutos(
@@ -1072,6 +1086,34 @@ export default function Home() {
     setMensagemConvite,
   ] = useState("");
 
+  const [
+    eventos,
+    setEventos,
+  ] = useState<EventoJogo[]>([]);
+
+  const [
+    aprovadasHoje,
+    setAprovadasHoje,
+  ] = useState(0);
+
+  const [
+    totalAprovadas,
+    setTotalAprovadas,
+  ] = useState(0);
+
+  const [
+    sequenciaDias,
+    setSequenciaDias,
+  ] = useState(0);
+
+  const [
+    mostrarAvanco,
+    setMostrarAvanco,
+  ] = useState(false);
+
+  const posicaoAnteriorRef =
+    useRef<number | null>(null);
+
   useEffect(() => {
     carregarPartida();
   }, []);
@@ -1105,6 +1147,30 @@ export default function Home() {
         {
           event: "*",
           schema: "public",
+          table: "games",
+          filter: `id=eq.${gameId}`,
+        },
+        () => {
+          carregarPartida(true);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "game_events",
+          filter: `game_id=eq.${gameId}`,
+        },
+        () => {
+          carregarEventos(gameId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
           table: "tasks",
           filter: `game_id=eq.${gameId}`,
         },
@@ -1131,6 +1197,103 @@ export default function Home() {
       );
     };
   }, [partida?.id]);
+
+  async function carregarEventos(
+    gameId: number
+  ) {
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      "get_game_events",
+      {
+        p_game_id: gameId,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Erro ao carregar histórico:",
+        error
+      );
+      return;
+    }
+
+    setEventos(
+      (data || []).map((item) => ({
+        id: item.id,
+        tipo: item.event_type,
+        atorId: item.actor_player_id,
+        alvoId: item.target_player_id,
+        tarefaId: item.task_id,
+        posicao: item.position,
+        criadoEm: item.created_at,
+      }))
+    );
+  }
+
+  function dataBrasilDeIso(
+    iso: string
+  ) {
+    return new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).format(new Date(iso));
+  }
+
+  function calcularSequencia(
+    datas: string[],
+    hoje: string
+  ) {
+    const unicas = Array.from(
+      new Set(datas)
+    ).sort();
+
+    if (!unicas.includes(hoje)) {
+      return 0;
+    }
+
+    let sequencia = 0;
+    let cursor = new Date(
+      `${hoje}T12:00:00-03:00`
+    );
+
+    const conjunto =
+      new Set(unicas);
+
+    while (true) {
+      const chave =
+        new Intl.DateTimeFormat(
+          "en-CA",
+          {
+            timeZone:
+              "America/Sao_Paulo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }
+        ).format(cursor);
+
+      if (!conjunto.has(chave)) {
+        break;
+      }
+
+      sequencia += 1;
+
+      cursor = new Date(
+        cursor.getTime() -
+          24 * 60 * 60 * 1000
+      );
+    }
+
+    return sequencia;
+  }
 
   async function carregarPartida(
     silencioso = false
@@ -1261,6 +1424,8 @@ export default function Home() {
       playerId
     );
 
+    carregarEventos(gameId);
+
     const [
       {
         data: partidaData,
@@ -1283,7 +1448,7 @@ export default function Home() {
       supabase
         .from("games")
         .select(
-          "id, name, code, total_spaces"
+          "id, name, code, total_spaces, prize, winner_player_id, finished_at"
         )
         .eq("id", gameId)
         .single(),
@@ -1314,7 +1479,7 @@ export default function Home() {
       supabase
         .from("submissions")
         .select(
-          "task_id, status, occurrence_date"
+          "task_id, status, occurrence_date, created_at"
         )
         .eq(
           "player_id",
@@ -1399,6 +1564,15 @@ export default function Home() {
         codigo:
           partidaData.code,
         totalCasas,
+        premio:
+          partidaData.prize ||
+          null,
+        vencedorJogadorId:
+          partidaData.winner_player_id ||
+          null,
+        finalizadaEm:
+          partidaData.finished_at ||
+          null,
       };
 
     const jogadoresDoBanco: Jogador[] =
@@ -1443,6 +1617,45 @@ export default function Home() {
 
     const agoraBrasil =
       obterAgoraBrasil();
+
+    const aprovadas =
+      submissoesDoBanco.filter(
+        (submissao) =>
+          [
+            "approved",
+            "Aprovada",
+          ].includes(
+            submissao.status
+          )
+      );
+
+    const datasAprovadas =
+      aprovadas.map(
+        (submissao) =>
+          submissao.occurrence_date ||
+          dataBrasilDeIso(
+            submissao.created_at
+          )
+      );
+
+    setTotalAprovadas(
+      aprovadas.length
+    );
+
+    setAprovadasHoje(
+      datasAprovadas.filter(
+        (data) =>
+          data ===
+          agoraBrasil.data
+      ).length
+    );
+
+    setSequenciaDias(
+      calcularSequencia(
+        datasAprovadas,
+        agoraBrasil.data
+      )
+    );
 
     const quantidadeTarefasPendentes =
       tarefasDoBanco.filter(
@@ -1621,14 +1834,16 @@ export default function Home() {
 
     const link =
       typeof window !== "undefined"
-        ? `${window.location.origin}/partidas`
+        ? `${window.location.origin}/partidas?codigo=${encodeURIComponent(
+            partida.codigo
+          )}`
         : "";
 
     const texto =
       `Vem jogar DoToWin comigo!\n\n` +
       `Partida: ${partida.nome}\n` +
       `Código: ${partida.codigo}\n\n` +
-      `Entre aqui: ${link}`;
+      `Abra o link e entre direto na partida: ${link}`;
 
     try {
       if (
@@ -1702,8 +1917,262 @@ export default function Home() {
     jogadores.length >= 2;
 
   const temTarefas =
-    totalTarefas > 0;  return (
+    totalTarefas > 0;
+
+  const vencedor =
+    partida?.vencedorJogadorId
+      ? jogadores.find(
+          (jogador) =>
+            jogador.id ===
+            partida.vencedorJogadorId
+        ) || null
+      : null;
+
+  const partidaFinalizada =
+    Boolean(
+      partida?.vencedorJogadorId &&
+        vencedor
+    );
+
+  const euVenci =
+    Boolean(
+      vencedor &&
+        vencedor.id ===
+          jogadorAtualId
+    );
+
+  function nomeJogadorPorId(
+    id: number | null
+  ) {
+    if (!id) {
+      return "Jogador";
+    }
+
+    return (
+      jogadores.find(
+        (jogador) =>
+          jogador.id === id
+      )?.nome || "Jogador"
+    );
+  }
+
+  function textoEvento(
+    evento: EventoJogo
+  ) {
+    const ator =
+      nomeJogadorPorId(
+        evento.atorId
+      );
+
+    const alvo =
+      nomeJogadorPorId(
+        evento.alvoId
+      );
+
+    if (
+      evento.tipo ===
+      "task_submitted"
+    ) {
+      return `${ator} enviou uma tarefa`;
+    }
+
+    if (
+      evento.tipo ===
+      "task_approved"
+    ) {
+      return `Tarefa de ${alvo} foi aprovada`;
+    }
+
+    if (
+      evento.tipo ===
+      "player_advanced"
+    ) {
+      return `${ator} avançou para a casa ${
+        evento.posicao ?? "?"
+      }`;
+    }
+
+    if (
+      evento.tipo ===
+      "game_won"
+    ) {
+      return `${ator} venceu a partida`;
+    }
+
+    return "Novo acontecimento na partida";
+  }
+
+  function horaEvento(
+    data: string
+  ) {
+    try {
+      return new Intl.DateTimeFormat(
+        "pt-BR",
+        {
+          timeZone:
+            "America/Sao_Paulo",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      ).format(new Date(data));
+    } catch {
+      return "";
+    }
+  }
+
+  const melhorPosicao =
+    Math.max(
+      ...jogadores.map(
+        (jogador) =>
+          jogador.posicao
+      ),
+      0
+    );
+
+  const lideres =
+    jogadores.filter(
+      (jogador) =>
+        jogador.posicao ===
+        melhorPosicao
+    );
+
+  const estaEmpatadoNaLideranca =
+    Boolean(
+      jogadorAtual &&
+        jogadorAtual.posicao ===
+          melhorPosicao &&
+        lideres.length > 1
+    );
+
+  const casasRestantes =
+    Math.max(
+      totalCasas -
+        posicaoAtual,
+      0
+    );
+
+  const posicaoRanking =
+    jogadorAtual
+      ? ranking.findIndex(
+          (jogador) =>
+            jogador.id ===
+            jogadorAtual.id
+        ) + 1
+      : 0;
+
+  const mensagemCorrida =
+    estaNaFrente
+      ? casasRestantes <= 3
+        ? `Você está na frente. Faltam só ${casasRestantes} ${
+            casasRestantes === 1
+              ? "casa"
+              : "casas"
+          } para vencer.`
+        : "Você assumiu a liderança da corrida."
+      : estaEmpatadoNaLideranca
+      ? "Empate na liderança. Qualquer aprovação pode virar o jogo."
+      : casasRestantes <= 3
+      ? `Faltam só ${casasRestantes} ${
+          casasRestantes === 1
+            ? "casa"
+            : "casas"
+        } para chegar ao fim.`
+      : posicaoRanking > 1
+      ? `Você está em ${posicaoRanking}º lugar. A corrida ainda está aberta.`
+      : "A corrida está começando. Cada aprovação vale uma casa.";
+
+  const conquistas = [
+    {
+      titulo:
+        "Primeiro passo",
+      descricao:
+        "Conseguiu a primeira aprovação.",
+      desbloqueada:
+        totalAprovadas >= 1,
+    },
+    {
+      titulo:
+        "Em movimento",
+      descricao:
+        "Chegou a 5 aprovações.",
+      desbloqueada:
+        totalAprovadas >= 5,
+    },
+    {
+      titulo:
+        "Metade do caminho",
+      descricao:
+        "Chegou à metade da corrida.",
+      desbloqueada:
+        posicaoAtual >=
+        Math.ceil(totalCasas / 2),
+    },
+    {
+      titulo:
+        "Sequência",
+      descricao:
+        "3 dias seguidos com aprovação.",
+      desbloqueada:
+        sequenciaDias >= 3,
+    },
+  ];
+
+  useEffect(() => {
+    if (
+      carregando ||
+      !jogadorAtual
+    ) {
+      return;
+    }
+
+    const anterior =
+      posicaoAnteriorRef.current;
+
+    if (
+      anterior !== null &&
+      posicaoAtual > anterior
+    ) {
+      setMostrarAvanco(true);
+
+      const timer =
+        window.setTimeout(() => {
+          setMostrarAvanco(false);
+        }, 1800);
+
+      posicaoAnteriorRef.current =
+        posicaoAtual;
+
+      return () => {
+        window.clearTimeout(
+          timer
+        );
+      };
+    }
+
+    posicaoAnteriorRef.current =
+      posicaoAtual;
+  }, [
+    posicaoAtual,
+    carregando,
+    jogadorAtual,
+  ]);
+
+  return (
     <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-0">
+      {mostrarAvanco && (
+        <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center">
+          <div className="animate-bounce rounded-[28px] bg-[#22C7D9] px-7 py-5 text-center text-white shadow-[0_18px_50px_rgba(34,199,217,.35)]">
+            <p className="text-[10px] font-black tracking-[0.22em] text-white/80">
+              TAREFA APROVADA
+            </p>
+
+            <p className="mt-1 text-4xl font-black">
+              +1 CASA
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-5 lg:px-6">
         <header className="mb-5 flex items-center justify-between gap-3 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] lg:px-5">
           <div className="flex min-w-0 items-center gap-5">
@@ -1762,13 +2231,239 @@ export default function Home() {
           </p>
         </div>
 
+        {partida?.premio && (
+          <section className="mb-5 overflow-hidden rounded-[24px] border border-[#E9DEFF] bg-white shadow-[0_8px_28px_rgba(15,23,42,.05)]">
+            <div className="flex items-center gap-4 p-4 sm:p-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F1ECFF] text-xl font-black text-[#8B5CF6]">
+                ★
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">
+                  PRÊMIO EM DISPUTA
+                </p>
+
+                <p className="mt-1 break-words text-sm font-black leading-relaxed text-[#1F2937] sm:text-base">
+                  {partida.premio}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {mensagemErro && (
           <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-600">
             {mensagemErro}
           </div>
         )}
 
-        {carregando ? (
+        {partidaFinalizada && vencedor ? (
+          <section className="mx-auto max-w-[980px]">
+            <div className="overflow-hidden rounded-[34px] bg-white shadow-[0_18px_54px_rgba(15,23,42,.08)]">
+              <div className="relative overflow-hidden bg-[#F1ECFF] px-5 py-8 text-center sm:px-8 sm:py-10">
+                <style jsx>{`
+                  @keyframes happyDance {
+                    0% {
+                      transform: translateY(0) rotate(-6deg) scale(1);
+                    }
+                    15% {
+                      transform: translateY(-12px) rotate(5deg) scale(1.02);
+                    }
+                    30% {
+                      transform: translateY(-3px) rotate(-4deg) scale(0.99);
+                    }
+                    45% {
+                      transform: translateY(-11px) rotate(6deg) scale(1.02);
+                    }
+                    60% {
+                      transform: translateY(0) rotate(-5deg) scale(1);
+                    }
+                    75% {
+                      transform: translateY(-9px) rotate(4deg) scale(1.01);
+                    }
+                    100% {
+                      transform: translateY(0) rotate(-6deg) scale(1);
+                    }
+                  }
+
+                  @keyframes happyEntrance {
+                    0% {
+                      transform: translateY(28px) scale(0.78);
+                      opacity: 0;
+                    }
+                    60% {
+                      transform: translateY(-8px) scale(1.06);
+                      opacity: 1;
+                    }
+                    100% {
+                      transform: translateY(0) scale(1);
+                      opacity: 1;
+                    }
+                  }
+
+                  @keyframes happyGlow {
+                    0%,
+                    100% {
+                      transform: scale(0.9);
+                      opacity: 0.28;
+                    }
+                    50% {
+                      transform: scale(1.12);
+                      opacity: 0.6;
+                    }
+                  }
+
+                  @keyframes sparklePulse {
+                    0%,
+                    100% {
+                      transform: scale(0.8) rotate(0deg);
+                      opacity: 0.4;
+                    }
+                    50% {
+                      transform: scale(1.18) rotate(12deg);
+                      opacity: 1;
+                    }
+                  }
+
+                  .happy-wrap {
+                    animation: happyEntrance 0.65s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+                  }
+
+                  .happy-dance {
+                    animation: happyDance 0.95s ease-in-out 0.65s infinite;
+                    transform-origin: 50% 72%;
+                    will-change: transform;
+                  }
+
+                  .happy-glow {
+                    animation: happyGlow 1.15s ease-in-out infinite;
+                  }
+
+                  .happy-sparkle {
+                    animation: sparklePulse 0.9s ease-in-out infinite;
+                  }
+
+                  .happy-sparkle.delay-1 {
+                    animation-delay: 0.18s;
+                  }
+
+                  .happy-sparkle.delay-2 {
+                    animation-delay: 0.36s;
+                  }
+
+                  @media (prefers-reduced-motion: reduce) {
+                    .happy-dance,
+                    .happy-glow {
+                      animation: none;
+                    }
+                  }
+                `}</style>
+
+                <div className="pointer-events-none absolute left-1/2 top-8 h-44 w-44 -translate-x-1/2 rounded-full bg-white/70 blur-3xl happy-glow" />
+
+                <div className="pointer-events-none absolute left-[27%] top-20 text-2xl text-[#F4B942] happy-sparkle">
+                  ✦
+                </div>
+
+                <div className="pointer-events-none absolute right-[28%] top-24 text-xl text-[#22C7D9] happy-sparkle delay-1">
+                  ✦
+                </div>
+
+                <div className="pointer-events-none absolute right-[34%] top-44 text-lg text-[#8B5CF6] happy-sparkle delay-2">
+                  ✦
+                </div>
+
+                <div className="happy-wrap relative mx-auto flex max-w-[290px] justify-center">
+                  <img
+                    src="/happy-iguana-vitoria.png"
+                    alt="Happy Iguana comemorando"
+                    className="happy-dance h-auto w-full object-contain"
+                  />
+                </div>
+
+                <p className="mt-4 text-[10px] font-black tracking-[0.24em] text-[#8B5CF6]">
+                  FIM DE JOGO
+                </p>
+
+                <h1 className="mx-auto mt-3 max-w-2xl text-4xl font-black tracking-[-0.05em] text-[#1F2937] sm:text-5xl">
+                  {euVenci
+                    ? "VOCÊ VENCEU!"
+                    : `${vencedor.nome} venceu!`}
+                </h1>
+
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500 sm:text-base">
+                  {euVenci
+                    ? `Você chegou primeiro ao fim da corrida ${partida?.nome || ""}.`
+                    : `${vencedor.nome} foi a primeira pessoa a chegar ao fim da corrida.`}
+                </p>
+              </div>
+
+              <div className="p-5 sm:p-8">
+                <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+                  <div className="rounded-[26px] bg-[#F8FBFE] p-5">
+                    <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                      CAMPEÃO
+                    </p>
+
+                    <div className="mt-4 flex items-center gap-4">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
+                        <Peao
+                          cor={vencedor.cor}
+                          avatar={vencedor.avatar}
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-xl font-black text-[#1F2937]">
+                          {vencedor.nome}
+                        </p>
+
+                        <p className="mt-1 text-xs font-bold text-slate-400">
+                          {totalCasas} de {totalCasas} casas
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[26px] bg-[#EAF8FB] p-5">
+                    <p className="text-[9px] font-black tracking-[0.18em] text-[#1594A3]">
+                      RESULTADO
+                    </p>
+
+                    <p className="mt-3 text-3xl font-black text-[#22C7D9]">
+                      {totalCasas} / {totalCasas}
+                    </p>
+
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                      A primeira pessoa a completar a corrida fica registrada como vencedora.
+                    </p>
+                  </div>
+                </div>
+
+                {partida?.premio && (
+                  <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border-2 border-[#E1D5FF] bg-[#F7F4FF] p-5 text-center sm:p-7">
+                    <p className="text-[10px] font-black tracking-[0.22em] text-[#8B5CF6]">
+                      PRÊMIO DA VITÓRIA
+                    </p>
+
+                    <p className="mx-auto mt-3 max-w-2xl break-words text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">
+                      {partida.premio}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mx-auto mt-6 flex max-w-3xl flex-col gap-3 sm:flex-row sm:justify-center">
+                  <Link
+                    href="/partidas"
+                    className="flex items-center justify-center rounded-2xl bg-[#8B5CF6] px-7 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(139,92,246,.17)] transition hover:-translate-y-0.5"
+                  >
+                    Voltar às partidas
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : carregando ? (
           <div className="flex min-h-[500px] items-center justify-center rounded-[30px] bg-white shadow-[0_14px_42px_rgba(15,23,42,.06)]">
             <div className="text-center">
               <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-100 border-t-[#22C7D9]" />
@@ -2008,7 +2703,69 @@ export default function Home() {
             </div>
           </section>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
+          <>
+            <section className="mb-5 grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+              <div className="rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
+                <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">
+                  COMO ESTÁ A CORRIDA
+                </p>
+
+                <p className="mt-2 text-lg font-black leading-snug text-[#1F2937]">
+                  {mensagemCorrida}
+                </p>
+
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="rounded-[20px] bg-[#F8FBFE] p-3 text-center">
+                    <p className="text-[8px] font-black tracking-[0.15em] text-slate-400">
+                      POSIÇÃO
+                    </p>
+                    <p className="mt-1 text-xl font-black text-[#22C7D9]">
+                      {posicaoRanking || "-"}º
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] bg-[#F8FBFE] p-3 text-center">
+                    <p className="text-[8px] font-black tracking-[0.15em] text-slate-400">
+                      FALTAM
+                    </p>
+                    <p className="mt-1 text-xl font-black text-[#8B5CF6]">
+                      {casasRestantes}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] bg-[#F8FBFE] p-3 text-center">
+                    <p className="text-[8px] font-black tracking-[0.15em] text-slate-400">
+                      SEQUÊNCIA
+                    </p>
+                    <p className="mt-1 text-xl font-black text-[#22C55E]">
+                      {sequenciaDias}d
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[28px] bg-[#EAF8FB] p-5 sm:p-6">
+                <p className="text-[9px] font-black tracking-[0.2em] text-[#1594A3]">
+                  RESUMO DE HOJE
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-[#22C7D9]">
+                  {aprovadasHoje}
+                </p>
+
+                <p className="mt-1 text-sm font-bold text-slate-500">
+                  {aprovadasHoje === 1
+                    ? "tarefa aprovada hoje"
+                    : "tarefas aprovadas hoje"}
+                </p>
+
+                <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                  Você está na casa {posicaoAtual} de {totalCasas} e tem {tarefasPendentes} tarefa{tarefasPendentes === 1 ? "" : "s"} disponível{tarefasPendentes === 1 ? "" : "is"} agora.
+                </p>
+              </div>
+            </section>
+
+            <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
             <aside className="hidden xl:block">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-[10px] font-black tracking-[0.25em] text-slate-400">
@@ -2146,6 +2903,59 @@ export default function Home() {
                     alt="Happy Iguana — você está na frente, continue assim!"
                     className="block h-auto w-full object-contain"
                   />
+                </div>
+              )}
+              {eventos.length > 0 && (
+                <div className="mt-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-black tracking-[0.22em] text-slate-400">
+                      ÚLTIMOS ACONTECIMENTOS
+                    </p>
+
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-500 shadow-sm">
+                      {Math.min(eventos.length, 4)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {eventos
+                      .slice(0, 4)
+                      .map((evento) => (
+                        <div
+                          key={evento.id}
+                          className="rounded-[20px] border border-[#EDF2F7] bg-white p-3 shadow-[0_6px_18px_rgba(15,23,42,.04)]"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F8FBFE] text-xs font-black text-[#8B5CF6]">
+                              {evento.tipo ===
+                              "game_won"
+                                ? "★"
+                                : evento.tipo ===
+                                  "player_advanced"
+                                ? "↑"
+                                : evento.tipo ===
+                                  "task_approved"
+                                ? "✓"
+                                : "•"}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="text-xs font-black leading-snug text-[#1F2937]">
+                                {textoEvento(
+                                  evento
+                                )}
+                              </p>
+
+                              <p className="mt-1 text-[9px] font-bold text-slate-400">
+                                {horaEvento(
+                                  evento.criadoEm
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
             </aside>
@@ -2350,6 +3160,60 @@ export default function Home() {
               </div>
             </section>
           </div>
+            <section className="mt-5 mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[9px] font-black tracking-[0.2em] text-[#F4B942]">
+                    CONQUISTAS
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-400">
+                    Marcos pessoais sem dar vantagem na corrida.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {conquistas.map(
+                  (conquista) => (
+                    <div
+                      key={
+                        conquista.titulo
+                      }
+                      className={`rounded-[22px] border p-4 ${
+                        conquista.desbloqueada
+                          ? "border-[#F5D879] bg-[#FFF8E7]"
+                          : "border-[#EDF2F7] bg-[#F8FBFE] opacity-55"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                            conquista.desbloqueada
+                              ? "bg-white text-[#D89900]"
+                              : "bg-white text-slate-300"
+                          }`}
+                        >
+                          {conquista.desbloqueada
+                            ? "★"
+                            : "○"}
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-black text-[#1F2937]">
+                            {conquista.titulo}
+                          </p>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                            {conquista.descricao}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            </section>
+
+          </>
         )}
       </div>
 
