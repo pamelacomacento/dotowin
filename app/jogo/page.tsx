@@ -1120,6 +1120,11 @@ export default function Home() {
     setSalvandoAprovacao,
   ] = useState(false);
 
+  const [
+    editandoAprovacao,
+    setEditandoAprovacao,
+  ] = useState(false);
+
   const posicaoAnteriorRef =
     useRef<number | null>(null);
 
@@ -1926,6 +1931,7 @@ export default function Home() {
     }
 
     await carregarPartida(true);
+    setEditandoAprovacao(false);
     setSalvandoAprovacao(false);
   }
 
@@ -2913,112 +2919,186 @@ export default function Home() {
 
             {souAdmin &&
               jogadores.length >= 3 && (
-              <section className="mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
-                <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">
-                  QUEM APROVA AS TAREFAS?
-                </p>
+              <>
+                {!editandoAprovacao ? (
+                  <section className="mb-5 rounded-[24px] bg-white px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:px-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                          APROVAÇÃO DA PARTIDA
+                        </p>
 
-                <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                  Com 3 ou mais jogadores, escolha como as tarefas serão validadas.
-                </p>
+                        <p className="mt-1 text-sm font-black text-[#1F2937]">
+                          {partida?.approvalMode ===
+                          "admin_only"
+                            ? "Somente o admin aprova"
+                            : "Todos os jogadores aprovam"}
+                        </p>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    disabled={salvandoAprovacao}
-                    onClick={() =>
-                      configurarAprovacao(
-                        "all",
-                        null
-                      )
-                    }
-                    className={`rounded-[22px] border-2 p-4 text-left transition ${
-                      partida?.approvalMode ===
-                      "all"
-                        ? "border-[#22C7D9] bg-[#EAF8FB]"
-                        : "border-[#E8EEF5] bg-[#F8FBFE]"
-                    }`}
-                  >
-                    <p className="text-sm font-black">
-                      Todos aprovam
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                      Qualquer outro jogador pode aprovar ou rejeitar.
-                    </p>
-                  </button>
+                        {partida?.approvalMode ===
+                          "admin_only" && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            As tarefas do admin são aprovadas por{" "}
+                            {
+                              jogadores.find(
+                                (jogador) =>
+                                  jogador.id ===
+                                  partida.adminApproverPlayerId
+                              )?.nome ||
+                              "um jogador escolhido"
+                            }
+                            .
+                          </p>
+                        )}
+                      </div>
 
-                  <button
-                    type="button"
-                    disabled={
-                      salvandoAprovacao ||
-                      aprovadoresPossiveisDoAdmin.length ===
-                        0
-                    }
-                    onClick={() =>
-                      configurarAprovacao(
-                        "admin_only",
-                        partida?.adminApproverPlayerId ||
-                          aprovadoresPossiveisDoAdmin[0]?.id ||
-                          null
-                      )
-                    }
-                    className={`rounded-[22px] border-2 p-4 text-left transition ${
-                      partida?.approvalMode ===
-                      "admin_only"
-                        ? "border-[#8B5CF6] bg-[#F1ECFF]"
-                        : "border-[#E8EEF5] bg-[#F8FBFE]"
-                    }`}
-                  >
-                    <p className="text-sm font-black">
-                      Só o admin aprova
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                      O admin aprova os demais e escolhe quem aprova as tarefas dele.
-                    </p>
-                  </button>
-                </div>
-
-                {partida?.approvalMode ===
-                  "admin_only" && (
-                  <div className="mt-4 rounded-[22px] bg-[#F8FBFE] p-4">
-                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
-                      QUEM APROVA AS TAREFAS DO ADMIN?
-                    </label>
-
-                    <select
-                      value={
-                        partida.adminApproverPlayerId ||
-                        ""
-                      }
-                      disabled={salvandoAprovacao}
-                      onChange={(event) =>
-                        configurarAprovacao(
-                          "admin_only",
-                          Number(
-                            event.target.value
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditandoAprovacao(
+                            true
                           )
-                        )
-                      }
-                      className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#8B5CF6]"
-                    >
-                      <option value="">
-                        Escolha um jogador
-                      </option>
+                        }
+                        className="shrink-0 rounded-2xl bg-[#F5F8FC] px-4 py-2.5 text-xs font-black text-slate-500 transition hover:bg-slate-100"
+                      >
+                        Alterar
+                      </button>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">
+                          QUEM APROVA AS TAREFAS?
+                        </p>
 
-                      {aprovadoresPossiveisDoAdmin.map(
-                        (jogador) => (
-                          <option
-                            key={jogador.id}
-                            value={jogador.id}
-                          >
-                            {jogador.nome}
+                        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                          Com 3 ou mais jogadores, escolha como as tarefas serão validadas.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditandoAprovacao(
+                            false
+                          )
+                        }
+                        className="rounded-2xl bg-[#F5F8FC] px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-slate-100"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        disabled={salvandoAprovacao}
+                        onClick={() =>
+                          configurarAprovacao(
+                            "all",
+                            null
+                          )
+                        }
+                        className={`rounded-[22px] border-2 p-4 text-left transition ${
+                          partida?.approvalMode ===
+                          "all"
+                            ? "border-[#22C7D9] bg-[#EAF8FB]"
+                            : "border-[#E8EEF5] bg-[#F8FBFE]"
+                        }`}
+                      >
+                        <p className="text-sm font-black">
+                          Todos aprovam
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                          Qualquer outro jogador pode aprovar ou rejeitar.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          salvandoAprovacao ||
+                          aprovadoresPossiveisDoAdmin.length ===
+                            0
+                        }
+                        onClick={() => {
+                          setEditandoAprovacao(
+                            true
+                          );
+
+                          if (
+                            partida?.approvalMode !==
+                            "admin_only"
+                          ) {
+                            configurarAprovacao(
+                              "admin_only",
+                              partida?.adminApproverPlayerId ||
+                                aprovadoresPossiveisDoAdmin[0]?.id ||
+                                null
+                            );
+                          }
+                        }}
+                        className={`rounded-[22px] border-2 p-4 text-left transition ${
+                          partida?.approvalMode ===
+                          "admin_only"
+                            ? "border-[#8B5CF6] bg-[#F1ECFF]"
+                            : "border-[#E8EEF5] bg-[#F8FBFE]"
+                        }`}
+                      >
+                        <p className="text-sm font-black">
+                          Só o admin aprova
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                          O admin aprova os demais e escolhe quem aprova as tarefas dele.
+                        </p>
+                      </button>
+                    </div>
+
+                    {partida?.approvalMode ===
+                      "admin_only" && (
+                      <div className="mt-4 rounded-[22px] bg-[#F8FBFE] p-4">
+                        <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                          QUEM APROVA AS TAREFAS DO ADMIN?
+                        </label>
+
+                        <select
+                          value={
+                            partida.adminApproverPlayerId ||
+                            ""
+                          }
+                          disabled={salvandoAprovacao}
+                          onChange={(event) =>
+                            configurarAprovacao(
+                              "admin_only",
+                              Number(
+                                event.target.value
+                              )
+                            )
+                          }
+                          className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#8B5CF6]"
+                        >
+                          <option value="">
+                            Escolha um jogador
                           </option>
-                        )
-                      )}
-                    </select>
-                  </div>
+
+                          {aprovadoresPossiveisDoAdmin.map(
+                            (jogador) => (
+                              <option
+                                key={jogador.id}
+                                value={jogador.id}
+                              >
+                                {jogador.nome}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
+                    )}
+                  </section>
                 )}
-              </section>
+              </>
             )}
 
             <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
