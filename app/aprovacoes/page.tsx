@@ -18,6 +18,7 @@ type Submissao = {
   playerId: number;
   status: string;
   photoUrl: string | null;
+  createdAt: string;
   tarefaTitulo: string;
   tarefaCategoria: string;
   jogadorNome: string;
@@ -34,19 +35,14 @@ function Logo() {
   );
 }
 
-function PeaoMini({
-  cor,
-}: {
-  cor: string;
-}) {
+function PeaoMini({ cor }: { cor: string }) {
   return (
     <div className="relative h-11 w-9 shrink-0">
       <div
         className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
         style={{
           backgroundColor: cor,
-          boxShadow:
-            "0 3px 8px rgba(15,23,42,.12)",
+          boxShadow: "0 3px 8px rgba(15,23,42,.12)",
         }}
       />
 
@@ -61,43 +57,73 @@ function PeaoMini({
         className="absolute bottom-0 left-1/2 h-2.5 w-9 -translate-x-1/2 rounded-full border-2 border-white"
         style={{
           backgroundColor: cor,
-          boxShadow:
-            "0 3px 8px rgba(15,23,42,.12)",
+          boxShadow: "0 3px 8px rgba(15,23,42,.12)",
         }}
       />
     </div>
   );
 }
 
+function formatarHorarioEnvio(createdAt: string) {
+  const data = new Date(createdAt);
+
+  if (Number.isNaN(data.getTime())) {
+    return "";
+  }
+
+  const agora = new Date();
+
+  const dataBrasil = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(data);
+
+  const hojeBrasil = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+
+  const horaBrasil = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(data);
+
+  if (dataBrasil === hojeBrasil) {
+    return `Enviada hoje às ${horaBrasil}`;
+  }
+
+  const diaBrasil = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(data);
+
+  return `Enviada em ${diaBrasil} às ${horaBrasil}`;
+}
+
 export default function AprovacoesPage() {
   const router = useRouter();
 
-  const [
-    jogadorAtual,
-    setJogadorAtual,
-  ] = useState<JogadorAtual | null>(
-    null
-  );
+  const [jogadorAtual, setJogadorAtual] =
+    useState<JogadorAtual | null>(null);
 
-  const [
-    submissoes,
-    setSubmissoes,
-  ] = useState<Submissao[]>([]);
+  const [submissoes, setSubmissoes] =
+    useState<Submissao[]>([]);
 
-  const [
-    carregando,
-    setCarregando,
-  ] = useState(true);
+  const [carregando, setCarregando] =
+    useState(true);
 
-  const [
-    processandoId,
-    setProcessandoId,
-  ] = useState<number | null>(null);
+  const [processandoId, setProcessandoId] =
+    useState<number | null>(null);
 
-  const [
-    mensagemErro,
-    setMensagemErro,
-  ] = useState("");
+  const [mensagemErro, setMensagemErro] =
+    useState("");
 
   useEffect(() => {
     carregarAprovacoes();
@@ -108,8 +134,7 @@ export default function AprovacoesPage() {
       return;
     }
 
-    const gameId =
-      jogadorAtual.gameId;
+    const gameId = jogadorAtual.gameId;
 
     const canal = supabase
       .channel(
@@ -172,8 +197,7 @@ export default function AprovacoesPage() {
     const {
       data: { user },
       error: erroUsuario,
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (erroUsuario || !user) {
       router.push("/login");
@@ -249,16 +273,11 @@ export default function AprovacoesPage() {
 
     const jogadorFormatado: JogadorAtual =
       {
-        id:
-          jogadorData.id,
-
-        nome:
-          jogadorData.name,
-
+        id: jogadorData.id,
+        nome: jogadorData.name,
         cor:
           jogadorData.color ||
           "#38BDF8",
-
         gameId:
           jogadorData.game_id,
       };
@@ -280,9 +299,7 @@ export default function AprovacoesPage() {
         jogadorFormatado.gameId
       );
 
-    if (
-      erroPlayersDaPartida
-    ) {
+    if (erroPlayersDaPartida) {
       console.error(
         "Erro ao carregar jogadores da partida:",
         erroPlayersDaPartida
@@ -325,11 +342,14 @@ export default function AprovacoesPage() {
     } = await supabase
       .from("submissions")
       .select(
-        "id, task_id, player_id, status, photo_url, created_at"
+        "id, task_id, player_id, status, photo_url, created_at, occurrence_date"
       )
-      .eq(
+      .in(
         "status",
-        "Aguardando aprovação"
+        [
+          "waiting",
+          "Aguardando aprovação",
+        ]
       )
       .in(
         "player_id",
@@ -393,7 +413,7 @@ export default function AprovacoesPage() {
     } = await supabase
       .from("tasks")
       .select(
-        "id, title, category, game_id"
+        "id, title, category, game_id, repeat_mode"
       )
       .in(
         "id",
@@ -475,6 +495,9 @@ export default function AprovacoesPage() {
                 submission.photo_url ||
                 null,
 
+              createdAt:
+                submission.created_at,
+
               tarefaTitulo:
                 tarefa?.title ||
                 "Tarefa",
@@ -494,13 +517,8 @@ export default function AprovacoesPage() {
           }
         );
 
-    setSubmissoes(
-      lista
-    );
-
-    setCarregando(
-      false
-    );
+    setSubmissoes(lista);
+    setCarregando(false);
   }
 
   async function aprovarSubmissao(
@@ -531,15 +549,14 @@ export default function AprovacoesPage() {
 
     setMensagemErro("");
 
-    const {
-      error,
-    } = await supabase.rpc(
-      "approve_submission",
-      {
-        p_submission_id:
-          submissao.id,
-      }
-    );
+    const { error } =
+      await supabase.rpc(
+        "approve_submission",
+        {
+          p_submission_id:
+            submissao.id,
+        }
+      );
 
     if (error) {
       console.error(
@@ -558,6 +575,9 @@ export default function AprovacoesPage() {
       if (
         erroTexto.includes(
           "cannot approve your own"
+        ) ||
+        erroTexto.includes(
+          "players cannot approve their own submission"
         )
       ) {
         mensagem =
@@ -572,6 +592,9 @@ export default function AprovacoesPage() {
       } else if (
         erroTexto.includes(
           "not a player in this game"
+        ) ||
+        erroTexto.includes(
+          "approver is not in this game"
         )
       ) {
         mensagem =
@@ -631,15 +654,14 @@ export default function AprovacoesPage() {
 
     setMensagemErro("");
 
-    const {
-      error,
-    } = await supabase.rpc(
-      "reject_submission",
-      {
-        p_submission_id:
-          submissao.id,
-      }
-    );
+    const { error } =
+      await supabase.rpc(
+        "reject_submission",
+        {
+          p_submission_id:
+            submissao.id,
+        }
+      );
 
     if (error) {
       console.error(
@@ -710,10 +732,7 @@ export default function AprovacoesPage() {
       "dotowin_game_id"
     );
 
-    router.push(
-      "/login"
-    );
-
+    router.push("/login");
     router.refresh();
   }
 
@@ -753,9 +772,7 @@ export default function AprovacoesPage() {
               </div>
 
               <button
-                onClick={
-                  sair
-                }
+                onClick={sair}
                 className="ml-1 rounded-xl px-3 py-2 text-[10px] font-black text-slate-400 transition hover:bg-white hover:text-red-500"
               >
                 Sair
@@ -831,8 +848,7 @@ export default function AprovacoesPage() {
         )}
 
         {!carregando &&
-          submissoes.length ===
-            0 && (
+          submissoes.length === 0 && (
             <div className="rounded-[30px] bg-white p-8 text-center shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-10">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#EEFBEF]">
                 <span className="text-3xl font-black text-[#22A447]">
@@ -858,22 +874,17 @@ export default function AprovacoesPage() {
           )}
 
         {!carregando &&
-          submissoes.length >
-            0 && (
+          submissoes.length > 0 && (
             <section className="space-y-5">
               {submissoes.map(
-                (
-                  submissao
-                ) => {
+                (submissao) => {
                   const processando =
                     processandoId ===
                     submissao.id;
 
                   return (
                     <article
-                      key={
-                        submissao.id
-                      }
+                      key={submissao.id}
                       className="overflow-hidden rounded-[30px] bg-white shadow-[0_12px_36px_rgba(15,23,42,.06)]"
                     >
                       <div className="grid lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,.82fr)]">
@@ -909,9 +920,7 @@ export default function AprovacoesPage() {
                               />
 
                               <span className="text-[10px] font-black text-slate-600">
-                                {
-                                  submissao.jogadorNome
-                                }
+                                {submissao.jogadorNome}
                               </span>
                             </div>
                           </div>
@@ -921,9 +930,7 @@ export default function AprovacoesPage() {
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="rounded-full bg-[#F5F8FC] px-2.5 py-1 text-[9px] font-black text-slate-400">
-                                {
-                                  submissao.tarefaCategoria
-                                }
+                                {submissao.tarefaCategoria}
                               </span>
 
                               <span className="rounded-full bg-[#FFF0C7] px-2.5 py-1 text-[9px] font-black text-[#B87C00]">
@@ -946,9 +953,13 @@ export default function AprovacoesPage() {
                                 </p>
 
                                 <p className="mt-1 font-black">
-                                  {
-                                    submissao.jogadorNome
-                                  }
+                                  {submissao.jogadorNome}
+                                </p>
+
+                                <p className="mt-1 text-[11px] font-bold text-slate-400">
+                                  {formatarHorarioEnvio(
+                                    submissao.createdAt
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -959,17 +970,13 @@ export default function AprovacoesPage() {
                               </p>
 
                               <h2 className="mt-2 text-xl font-black leading-snug">
-                                {
-                                  submissao.tarefaTitulo
-                                }
+                                {submissao.tarefaTitulo}
                               </h2>
 
                               <p className="mt-3 text-sm leading-relaxed text-slate-500">
                                 Confira a foto com atenção. Se ela comprovar a tarefa,{" "}
                                 <strong className="text-[#1F2937]">
-                                  {
-                                    submissao.jogadorNome
-                                  }
+                                  {submissao.jogadorNome}
                                 </strong>{" "}
                                 avança exatamente uma casa.
                               </p>

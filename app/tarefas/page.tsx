@@ -14,6 +14,15 @@ type StatusSubmissao =
   | "Aguardando aprovação"
   | "Concluída";
 
+type ModoRepeticao =
+  | "once"
+  | "daily";
+
+type EstadoHorario =
+  | "disponivel"
+  | "ainda_nao"
+  | "encerrada";
+
 type Jogador = {
   id: number;
   nome: string;
@@ -25,6 +34,9 @@ type Tarefa = {
   id: number;
   titulo: string;
   categoria: string;
+  repeatMode: ModoRepeticao;
+  availableFrom: string | null;
+  availableUntil: string | null;
 };
 
 type Submissao = {
@@ -33,6 +45,7 @@ type Submissao = {
   playerId: number;
   status: StatusSubmissao;
   photoUrl: string | null;
+  occurrenceDate: string | null;
 };
 
 function Logo() {
@@ -80,6 +93,168 @@ function PeaoMini({
   );
 }
 
+function normalizarStatus(
+  status: string | null
+): StatusSubmissao {
+  if (
+    status === "waiting" ||
+    status ===
+      "Aguardando aprovação"
+  ) {
+    return "Aguardando aprovação";
+  }
+
+  if (
+    status === "approved" ||
+    status === "Concluída"
+  ) {
+    return "Concluída";
+  }
+
+  return "Pendente";
+}
+
+function formatarHora(
+  hora: string | null
+) {
+  if (!hora) {
+    return null;
+  }
+
+  return hora.slice(0, 5);
+}
+
+function horaEmMinutos(
+  hora: string | null
+) {
+  if (!hora) {
+    return null;
+  }
+
+  const [horas, minutos] =
+    hora.split(":").map(Number);
+
+  if (
+    !Number.isFinite(horas) ||
+    !Number.isFinite(minutos)
+  ) {
+    return null;
+  }
+
+  return horas * 60 + minutos;
+}
+
+function obterAgoraBrasil(
+  timestamp: number
+) {
+  const partes =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }
+    ).formatToParts(
+      new Date(timestamp)
+    );
+
+  const mapa =
+    Object.fromEntries(
+      partes.map((parte) => [
+        parte.type,
+        parte.value,
+      ])
+    );
+
+  return {
+    data:
+      `${mapa.year}-${mapa.month}-${mapa.day}`,
+    minutos:
+      Number(mapa.hour) *
+        60 +
+      Number(mapa.minute),
+  };
+}
+
+function obterEstadoHorario(
+  tarefa: Tarefa,
+  agoraMinutos: number
+): EstadoHorario {
+  if (
+    tarefa.repeatMode !==
+    "daily"
+  ) {
+    return "disponivel";
+  }
+
+  const inicio =
+    horaEmMinutos(
+      tarefa.availableFrom
+    );
+
+  const fim =
+    horaEmMinutos(
+      tarefa.availableUntil
+    );
+
+  if (
+    inicio !== null &&
+    agoraMinutos < inicio
+  ) {
+    return "ainda_nao";
+  }
+
+  if (
+    fim !== null &&
+    agoraMinutos > fim
+  ) {
+    return "encerrada";
+  }
+
+  return "disponivel";
+}
+
+function textoHorario(
+  tarefa: Tarefa
+) {
+  if (
+    tarefa.repeatMode ===
+    "once"
+  ) {
+    return "Uma vez";
+  }
+
+  const inicio =
+    formatarHora(
+      tarefa.availableFrom
+    );
+
+  const fim =
+    formatarHora(
+      tarefa.availableUntil
+    );
+
+  if (inicio && fim) {
+    return `${inicio} → ${fim}`;
+  }
+
+  if (inicio) {
+    return `A partir de ${inicio}`;
+  }
+
+  if (fim) {
+    return `Até ${fim}`;
+  }
+
+  return "Dia todo";
+}
+
 export default function TarefasPage() {
   const router = useRouter();
 
@@ -92,7 +267,10 @@ export default function TarefasPage() {
   const [
     jogadorAtual,
     setJogadorAtual,
-  ] = useState<Jogador | null>(null);
+  ] =
+    useState<Jogador | null>(
+      null
+    );
 
   const [
     ehAdministrador,
@@ -115,6 +293,24 @@ export default function TarefasPage() {
   const [categoria, setCategoria] =
     useState("");
 
+  const [
+    modoRepeticao,
+    setModoRepeticao,
+  ] =
+    useState<ModoRepeticao>(
+      "once"
+    );
+
+  const [
+    horarioInicio,
+    setHorarioInicio,
+  ] = useState("");
+
+  const [
+    horarioFim,
+    setHorarioFim,
+  ] = useState("");
+
   const [carregando, setCarregando] =
     useState(true);
 
@@ -129,12 +325,18 @@ export default function TarefasPage() {
   const [
     tarefaEmAtualizacao,
     setTarefaEmAtualizacao,
-  ] = useState<number | null>(null);
+  ] =
+    useState<number | null>(
+      null
+    );
 
   const [
     tarefaSelecionada,
     setTarefaSelecionada,
-  ] = useState<Tarefa | null>(null);
+  ] =
+    useState<Tarefa | null>(
+      null
+    );
 
   const [
     cameraAberta,
@@ -149,12 +351,23 @@ export default function TarefasPage() {
   const [
     fotoCapturada,
     setFotoCapturada,
-  ] = useState<Blob | null>(null);
+  ] =
+    useState<Blob | null>(
+      null
+    );
 
   const [
     fotoPreview,
     setFotoPreview,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [agora, setAgora] =
+    useState(() =>
+      Date.now()
+    );
 
   const videoRef =
     useRef<HTMLVideoElement | null>(
@@ -167,13 +380,30 @@ export default function TarefasPage() {
     );
 
   const streamRef =
-    useRef<MediaStream | null>(null);
+    useRef<MediaStream | null>(
+      null
+    );
 
   const menuPerfilRef =
-    useRef<HTMLDivElement | null>(null);
+    useRef<HTMLDivElement | null>(
+      null
+    );
 
   useEffect(() => {
     carregarDados();
+  }, []);
+
+  useEffect(() => {
+    const intervalo =
+      window.setInterval(() => {
+        setAgora(Date.now());
+      }, 30000);
+
+    return () => {
+      window.clearInterval(
+        intervalo
+      );
+    };
   }, []);
 
   useEffect(() => {
@@ -211,7 +441,8 @@ export default function TarefasPage() {
         {
           event: "*",
           schema: "public",
-          table: "submissions",
+          table:
+            "submissions",
           filter: `player_id=eq.${playerId}`,
         },
         () => {
@@ -221,7 +452,9 @@ export default function TarefasPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(canal);
+      supabase.removeChannel(
+        canal
+      );
     };
   }, [
     jogadorAtual?.gameId,
@@ -256,7 +489,9 @@ export default function TarefasPage() {
           event.target as Node
         )
       ) {
-        setMenuPerfilAberto(false);
+        setMenuPerfilAberto(
+          false
+        );
       }
     }
 
@@ -288,7 +523,10 @@ export default function TarefasPage() {
     } =
       await supabase.auth.getUser();
 
-    if (erroUsuario || !user) {
+    if (
+      erroUsuario ||
+      !user
+    ) {
       router.push("/login");
       return;
     }
@@ -299,19 +537,27 @@ export default function TarefasPage() {
       );
 
     if (!gameIdSalvo) {
-      router.push("/partidas");
+      router.push(
+        "/partidas"
+      );
       return;
     }
 
     const gameId =
       Number(gameIdSalvo);
 
-    if (!Number.isFinite(gameId)) {
+    if (
+      !Number.isFinite(
+        gameId
+      )
+    ) {
       localStorage.removeItem(
         "dotowin_game_id"
       );
 
-      router.push("/partidas");
+      router.push(
+        "/partidas"
+      );
       return;
     }
 
@@ -334,7 +580,10 @@ export default function TarefasPage() {
           "profile_id",
           user.id
         )
-        .eq("game_id", gameId)
+        .eq(
+          "game_id",
+          gameId
+        )
         .maybeSingle(),
 
       supabase
@@ -342,7 +591,10 @@ export default function TarefasPage() {
         .select(
           "id, admin_profile_id"
         )
-        .eq("id", gameId)
+        .eq(
+          "id",
+          gameId
+        )
         .maybeSingle(),
     ]);
 
@@ -401,7 +653,8 @@ export default function TarefasPage() {
     const jogadorFormatado: Jogador =
       {
         id: jogadorData.id,
-        nome: jogadorData.name,
+        nome:
+          jogadorData.name,
         cor:
           jogadorData.color ||
           "#38BDF8",
@@ -420,26 +673,31 @@ export default function TarefasPage() {
       },
       {
         data: submissoesData,
-        error: erroSubmissoes,
+        error:
+          erroSubmissoes,
       },
     ] = await Promise.all([
       supabase
         .from("tasks")
         .select(
-          "id, title, category, created_at, game_id"
+          "id, title, category, repeat_mode, available_from, available_until, created_at, game_id"
         )
         .eq(
           "game_id",
           jogadorFormatado.gameId
         )
-        .order("created_at", {
-          ascending: false,
-        }),
+        .order(
+          "created_at",
+          {
+            ascending:
+              false,
+          }
+        ),
 
       supabase
         .from("submissions")
         .select(
-          "id, task_id, player_id, status, photo_url"
+          "id, task_id, player_id, status, photo_url, occurrence_date"
         )
         .eq(
           "player_id",
@@ -461,7 +719,9 @@ export default function TarefasPage() {
       return;
     }
 
-    if (erroSubmissoes) {
+    if (
+      erroSubmissoes
+    ) {
       console.error(
         "Erro ao carregar submissões:",
         erroSubmissoes
@@ -479,26 +739,45 @@ export default function TarefasPage() {
       (tarefasData || []).map(
         (item) => ({
           id: item.id,
-          titulo: item.title,
+          titulo:
+            item.title,
           categoria:
             item.category ||
             "Geral",
+          repeatMode:
+            item.repeat_mode ===
+            "daily"
+              ? "daily"
+              : "once",
+          availableFrom:
+            item.available_from ||
+            null,
+          availableUntil:
+            item.available_until ||
+            null,
         })
       );
 
     const submissoesFormatadas: Submissao[] =
-      (submissoesData || []).map(
+      (
+        submissoesData ||
+        []
+      ).map(
         (item) => ({
           id: item.id,
-          taskId: item.task_id,
+          taskId:
+            item.task_id,
           playerId:
             item.player_id,
-          status: (
-            item.status ||
-            "Pendente"
-          ) as StatusSubmissao,
+          status:
+            normalizarStatus(
+              item.status
+            ),
           photoUrl:
             item.photo_url ||
+            null,
+          occurrenceDate:
+            item.occurrence_date ||
             null,
         })
       );
@@ -511,21 +790,38 @@ export default function TarefasPage() {
       submissoesFormatadas
     );
 
+    setAgora(Date.now());
     setCarregando(false);
   }
 
+  function limparFormulario() {
+    setTitulo("");
+    setCategoria("");
+    setModoRepeticao(
+      "once"
+    );
+    setHorarioInicio("");
+    setHorarioFim("");
+  }
+
   function trocarPartida() {
-    setMenuPerfilAberto(false);
+    setMenuPerfilAberto(
+      false
+    );
 
     localStorage.removeItem(
       "dotowin_game_id"
     );
 
-    router.push("/partidas");
+    router.push(
+      "/partidas"
+    );
   }
 
   async function sair() {
-    setMenuPerfilAberto(false);
+    setMenuPerfilAberto(
+      false
+    );
 
     pararCamera();
 
@@ -558,6 +854,34 @@ export default function TarefasPage() {
       return;
     }
 
+    if (
+      modoRepeticao ===
+        "daily" &&
+      horarioInicio &&
+      horarioFim
+    ) {
+      const inicio =
+        horaEmMinutos(
+          horarioInicio
+        );
+
+      const fim =
+        horaEmMinutos(
+          horarioFim
+        );
+
+      if (
+        inicio !== null &&
+        fim !== null &&
+        fim <= inicio
+      ) {
+        setMensagemErro(
+          "O horário final precisa ser depois do horário inicial."
+        );
+        return;
+      }
+    }
+
     setSalvando(true);
     setMensagemErro("");
 
@@ -570,12 +894,27 @@ export default function TarefasPage() {
           category:
             categoria.trim() ||
             "Geral",
-          status: "Pendente",
+          status:
+            "Pendente",
           game_id:
             jogadorAtual.gameId,
+          repeat_mode:
+            modoRepeticao,
+          available_from:
+            modoRepeticao ===
+              "daily" &&
+            horarioInicio
+              ? horarioInicio
+              : null,
+          available_until:
+            modoRepeticao ===
+              "daily" &&
+            horarioFim
+              ? horarioFim
+              : null,
         })
         .select(
-          "id, title, category"
+          "id, title, category, repeat_mode, available_from, available_until"
         )
         .single();
 
@@ -596,10 +935,22 @@ export default function TarefasPage() {
     const novaTarefa: Tarefa =
       {
         id: data.id,
-        titulo: data.title,
+        titulo:
+          data.title,
         categoria:
           data.category ||
           "Geral",
+        repeatMode:
+          data.repeat_mode ===
+          "daily"
+            ? "daily"
+            : "once",
+        availableFrom:
+          data.available_from ||
+          null,
+        availableUntil:
+          data.available_until ||
+          null,
       };
 
     setTarefas(
@@ -609,25 +960,51 @@ export default function TarefasPage() {
       ]
     );
 
-    setTitulo("");
-    setCategoria("");
-    setMostrarFormulario(false);
+    limparFormulario();
+
+    setMostrarFormulario(
+      false
+    );
+
     setSalvando(false);
   }
 
+  const agoraBrasil =
+    obterAgoraBrasil(agora);
+
   function buscarSubmissao(
-    tarefaId: number
+    tarefa: Tarefa
   ) {
     if (!jogadorAtual) {
       return undefined;
     }
 
     return submissoes.find(
-      (submissao) =>
-        submissao.taskId ===
-          tarefaId &&
-        submissao.playerId ===
-          jogadorAtual.id
+      (submissao) => {
+        if (
+          submissao.taskId !==
+            tarefa.id ||
+          submissao.playerId !==
+            jogadorAtual.id
+        ) {
+          return false;
+        }
+
+        if (
+          tarefa.repeatMode ===
+          "daily"
+        ) {
+          return (
+            submissao.occurrenceDate ===
+            agoraBrasil.data
+          );
+        }
+
+        return (
+          submissao.occurrenceDate ===
+          null
+        );
+      }
     );
   }
 
@@ -642,18 +1019,62 @@ export default function TarefasPage() {
       return;
     }
 
+    const estado =
+      obterEstadoHorario(
+        tarefa,
+        agoraBrasil.minutos
+      );
+
+    if (
+      estado ===
+      "ainda_nao"
+    ) {
+      setMensagemErro(
+        `Essa tarefa ainda não está disponível. ${
+          tarefa.availableFrom
+            ? `Ela começa às ${formatarHora(
+                tarefa.availableFrom
+              )}.`
+            : ""
+        }`
+      );
+      return;
+    }
+
+    if (
+      estado ===
+      "encerrada"
+    ) {
+      setMensagemErro(
+        `O prazo desta tarefa terminou hoje${
+          tarefa.availableUntil
+            ? ` às ${formatarHora(
+                tarefa.availableUntil
+              )}`
+            : ""
+        }. Ela estará disponível novamente amanhã.`
+      );
+      return;
+    }
+
     limparFotoCapturada();
 
     setMensagemErro("");
+
     setTarefaSelecionada(
       tarefa
     );
 
-    setCameraAberta(true);
+    setCameraAberta(
+      true
+    );
   }
 
   async function iniciarCamera() {
-    setIniciandoCamera(true);
+    setIniciandoCamera(
+      true
+    );
+
     setMensagemErro("");
 
     try {
@@ -729,13 +1150,18 @@ export default function TarefasPage() {
         error
       );
 
-      setIniciandoCamera(false);
+      setIniciandoCamera(
+        false
+      );
 
       setMensagemErro(
         "Não foi possível acessar a câmera. Verifique se você permitiu o uso da câmera para o DoToWin."
       );
 
-      setCameraAberta(false);
+      setCameraAberta(
+        false
+      );
+
       setTarefaSelecionada(
         null
       );
@@ -743,18 +1169,24 @@ export default function TarefasPage() {
   }
 
   function pararCamera() {
-    if (streamRef.current) {
+    if (
+      streamRef.current
+    ) {
       streamRef.current
         .getTracks()
-        .forEach((track) => {
-          track.stop();
-        });
+        .forEach(
+          (track) => {
+            track.stop();
+          }
+        );
 
       streamRef.current =
         null;
     }
 
-    if (videoRef.current) {
+    if (
+      videoRef.current
+    ) {
       videoRef.current.srcObject =
         null;
     }
@@ -767,21 +1199,30 @@ export default function TarefasPage() {
       );
     }
 
-    setFotoCapturada(null);
-    setFotoPreview(null);
+    setFotoCapturada(
+      null
+    );
+
+    setFotoPreview(
+      null
+    );
   }
 
   function fecharCamera() {
     pararCamera();
     limparFotoCapturada();
 
-    setCameraAberta(false);
+    setCameraAberta(
+      false
+    );
 
     setTarefaSelecionada(
       null
     );
 
-    setIniciandoCamera(false);
+    setIniciandoCamera(
+      false
+    );
   }
 
   function tirarFoto() {
@@ -823,7 +1264,9 @@ export default function TarefasPage() {
       altura;
 
     const contexto =
-      canvas.getContext("2d");
+      canvas.getContext(
+        "2d"
+      );
 
     if (!contexto) {
       setMensagemErro(
@@ -851,7 +1294,9 @@ export default function TarefasPage() {
           return;
         }
 
-        if (fotoPreview) {
+        if (
+          fotoPreview
+        ) {
           URL.revokeObjectURL(
             fotoPreview
           );
@@ -879,6 +1324,7 @@ export default function TarefasPage() {
 
   async function tirarOutraFoto() {
     limparFotoCapturada();
+
     await iniciarCamera();
   }
 
@@ -898,6 +1344,30 @@ export default function TarefasPage() {
     const tarefa =
       tarefaSelecionada;
 
+    const estado =
+      obterEstadoHorario(
+        tarefa,
+        obterAgoraBrasil(
+          Date.now()
+        ).minutos
+      );
+
+    if (
+      estado !==
+      "disponivel"
+    ) {
+      fecharCamera();
+
+      setMensagemErro(
+        estado ===
+          "ainda_nao"
+          ? "Essa tarefa ainda não está disponível."
+          : "O prazo desta tarefa terminou hoje. Ela estará disponível novamente amanhã."
+      );
+
+      return;
+    }
+
     setTarefaEmAtualizacao(
       tarefa.id
     );
@@ -912,18 +1382,20 @@ export default function TarefasPage() {
 
     const {
       error: erroUpload,
-    } = await supabase.storage
-      .from("task-photos")
-      .upload(
-        caminhoArquivo,
-        fotoCapturada,
-        {
-          cacheControl: "3600",
-          upsert: false,
-          contentType:
-            "image/jpeg",
-        }
-      );
+    } =
+      await supabase.storage
+        .from("task-photos")
+        .upload(
+          caminhoArquivo,
+          fotoCapturada,
+          {
+            cacheControl:
+              "3600",
+            upsert: false,
+            contentType:
+              "image/jpeg",
+          }
+        );
 
     if (erroUpload) {
       console.error(
@@ -944,24 +1416,23 @@ export default function TarefasPage() {
 
     const {
       data: { publicUrl },
-    } = supabase.storage
-      .from("task-photos")
-      .getPublicUrl(
-        caminhoArquivo
-      );
+    } =
+      supabase.storage
+        .from("task-photos")
+        .getPublicUrl(
+          caminhoArquivo
+        );
 
-    const {
-      data,
-      error,
-    } = await supabase.rpc(
-      "submit_task",
-      {
-        p_task_id:
-          tarefa.id,
-        p_photo_url:
-          publicUrl,
-      }
-    );
+    const { error } =
+      await supabase.rpc(
+        "submit_task",
+        {
+          p_task_id:
+            tarefa.id,
+          p_photo_url:
+            publicUrl,
+        }
+      );
 
     if (error) {
       console.error(
@@ -973,27 +1444,43 @@ export default function TarefasPage() {
         "A foto foi enviada, mas não foi possível registrar a tarefa.";
 
       const erroTexto =
-        `${error.message || ""} ${
+        `${
+          error.message || ""
+        } ${
           error.details || ""
         }`.toLowerCase();
 
       if (
         erroTexto.includes(
-          "task already completed"
+          "task already submitted today"
         )
       ) {
         mensagem =
-          "Essa tarefa já foi concluída.";
+          "Você já enviou essa tarefa hoje.";
       } else if (
         erroTexto.includes(
-          "already awaiting approval"
+          "task already submitted"
         )
       ) {
         mensagem =
-          "Essa tarefa já está aguardando aprovação.";
+          "Essa tarefa já foi enviada.";
       } else if (
         erroTexto.includes(
-          "player is not part of this game"
+          "task is not available yet"
+        )
+      ) {
+        mensagem =
+          "Essa tarefa ainda não está disponível.";
+      } else if (
+        erroTexto.includes(
+          "task has expired for today"
+        )
+      ) {
+        mensagem =
+          "O prazo dessa tarefa terminou hoje. Ela volta amanhã.";
+      } else if (
+        erroTexto.includes(
+          "player not found in this game"
         )
       ) {
         mensagem =
@@ -1018,82 +1505,49 @@ export default function TarefasPage() {
       return;
     }
 
-    const resultado =
-      Array.isArray(data)
-        ? data[0]
-        : data;
-
-    if (resultado) {
-      const submissaoAtualizada: Submissao =
-        {
-          id:
-            resultado.id,
-          taskId:
-            resultado.task_id,
-          playerId:
-            resultado.player_id,
-          status:
-            resultado.status as StatusSubmissao,
-          photoUrl:
-            resultado.photo_url ||
-            null,
-        };
-
-      setSubmissoes(
-        (atuais) => {
-          const existe =
-            atuais.some(
-              (item) =>
-                item.id ===
-                submissaoAtualizada.id
-            );
-
-          if (existe) {
-            return atuais.map(
-              (item) =>
-                item.id ===
-                submissaoAtualizada.id
-                  ? submissaoAtualizada
-                  : item
-            );
-          }
-
-          return [
-            submissaoAtualizada,
-            ...atuais,
-          ];
-        }
-      );
-    }
-
     setTarefaEmAtualizacao(
       null
     );
 
     fecharCamera();
+
+    await carregarDados(
+      true
+    );
   }
 
   const statusDasTarefas =
-    tarefas.map((tarefa) => {
-      const submissao =
-        buscarSubmissao(
-          tarefa.id
-        );
+    tarefas.map(
+      (tarefa) => {
+        const submissao =
+          buscarSubmissao(
+            tarefa
+          );
 
-      return {
-        tarefa,
-        submissao,
-        status:
-          submissao?.status ||
-          ("Pendente" as StatusSubmissao),
-      };
-    });
+        const estadoHorario =
+          obterEstadoHorario(
+            tarefa,
+            agoraBrasil.minutos
+          );
+
+        return {
+          tarefa,
+          submissao,
+          estadoHorario,
+          status:
+            submissao?.status ||
+            ("Pendente" as StatusSubmissao),
+        };
+      }
+    );
 
   const disponiveis =
     statusDasTarefas.filter(
       (item) =>
         item.status ===
-        "Pendente"
+          "Pendente" &&
+        item.estadoHorario ===
+          "disponivel"
     ).length;
 
   const aguardando =
@@ -1132,6 +1586,16 @@ export default function TarefasPage() {
                       tarefaSelecionada.titulo
                     }
                   </h2>
+
+                  {tarefaSelecionada.repeatMode ===
+                    "daily" && (
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      Hoje •{" "}
+                      {textoHorario(
+                        tarefaSelecionada
+                      )}
+                    </p>
+                  )}
                 </div>
 
                 <button
@@ -1269,13 +1733,16 @@ export default function TarefasPage() {
 
           {jogadorAtual && (
             <div
-              ref={menuPerfilRef}
+              ref={
+                menuPerfilRef
+              }
               className="relative"
             >
               <button
                 onClick={() =>
                   setMenuPerfilAberto(
-                    (aberto) => !aberto
+                    (aberto) =>
+                      !aberto
                   )
                 }
                 className="flex items-center gap-3 rounded-2xl bg-[#F8FBFE] px-3 py-2.5 transition hover:bg-slate-100"
@@ -1288,7 +1755,9 @@ export default function TarefasPage() {
 
                 <div className="hidden text-left sm:block">
                   <p className="max-w-[150px] truncate text-xs font-black">
-                    {jogadorAtual.nome}
+                    {
+                      jogadorAtual.nome
+                    }
                   </p>
 
                   <p className="text-[9px] font-bold text-slate-400">
@@ -1322,7 +1791,9 @@ export default function TarefasPage() {
                       />
 
                       <p className="truncate text-sm font-black">
-                        {jogadorAtual.nome}
+                        {
+                          jogadorAtual.nome
+                        }
                       </p>
                     </div>
                   </div>
@@ -1386,7 +1857,7 @@ export default function TarefasPage() {
           </h1>
 
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
-            As tarefas são iguais para todos, mas cada jogador avança no seu próprio ritmo.
+            Cada tarefa vale +1 casa. As missões diárias renovam todos os dias e precisam ser feitas dentro do horário definido.
           </p>
         </section>
 
@@ -1414,7 +1885,9 @@ export default function TarefasPage() {
 
                 <div className="mt-1 flex items-center gap-2">
                   <p className="font-black">
-                    {jogadorAtual.nome}
+                    {
+                      jogadorAtual.nome
+                    }
                   </p>
 
                   {ehAdministrador && (
@@ -1459,7 +1932,7 @@ export default function TarefasPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Todos os jogadores desta partida receberão a mesma tarefa.
+                    Defina se a tarefa acontece apenas uma vez ou se volta todos os dias.
                   </p>
                 </div>
 
@@ -1469,9 +1942,11 @@ export default function TarefasPage() {
                       false
                     );
 
-                    setTitulo("");
+                    limparFormulario();
 
-                    setCategoria("");
+                    setMensagemErro(
+                      ""
+                    );
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5F8FC] text-slate-400 transition hover:bg-slate-100"
                 >
@@ -1494,7 +1969,7 @@ export default function TarefasPage() {
                         event.target.value
                       )
                     }
-                    placeholder="Ex.: Caminhar por 30 minutos"
+                    placeholder="Ex.: Acordar cedo"
                     className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
                   />
                 </div>
@@ -1515,10 +1990,157 @@ export default function TarefasPage() {
                         event.target.value
                       )
                     }
-                    placeholder="Ex.: Saúde"
+                    placeholder="Ex.: Rotina"
                     className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
                   />
                 </div>
+
+                <div>
+                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    REPETIÇÃO
+                  </label>
+
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoRepeticao(
+                          "once"
+                        );
+
+                        setHorarioInicio(
+                          ""
+                        );
+
+                        setHorarioFim(
+                          ""
+                        );
+                      }}
+                      className={`rounded-2xl border-2 p-4 text-left transition ${
+                        modoRepeticao ===
+                        "once"
+                          ? "border-[#22C7D9] bg-[#EAF8FB]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE]"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-black ${
+                          modoRepeticao ===
+                          "once"
+                            ? "text-[#1594A3]"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        Uma vez
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                        Cada jogador conclui uma única vez.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModoRepeticao(
+                          "daily"
+                        )
+                      }
+                      className={`rounded-2xl border-2 p-4 text-left transition ${
+                        modoRepeticao ===
+                        "daily"
+                          ? "border-[#8B5CF6] bg-[#F1ECFF]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE]"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-black ${
+                          modoRepeticao ===
+                          "daily"
+                            ? "text-[#7C4BE8]"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        Todos os dias
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                        Renova automaticamente no dia seguinte.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {modoRepeticao ===
+                  "daily" && (
+                  <div className="rounded-[22px] bg-[#F8F6FF] p-4">
+                    <div className="mb-4">
+                      <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">
+                        JANELA DO DIA
+                      </p>
+
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        Os horários são opcionais. Sem horário, a tarefa fica disponível durante todo o dia.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
+                          DISPONÍVEL A PARTIR DE
+                        </label>
+
+                        <input
+                          type="time"
+                          value={
+                            horarioInicio
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setHorarioInicio(
+                              event.target.value
+                            )
+                          }
+                          className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-white px-4 py-3.5 text-sm font-bold outline-none transition focus:border-[#8B5CF6]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
+                          ENCERRA ÀS
+                        </label>
+
+                        <input
+                          type="time"
+                          value={
+                            horarioFim
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setHorarioFim(
+                              event.target.value
+                            )
+                          }
+                          className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-white px-4 py-3.5 text-sm font-bold outline-none transition focus:border-[#8B5CF6]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs text-slate-500">
+                      Exemplo:{" "}
+                      <strong className="text-slate-700">
+                        Acordar cedo
+                      </strong>{" "}
+                      pode ficar disponível das{" "}
+                      <strong className="text-slate-700">
+                        05:00 às 08:00
+                      </strong>
+                      .
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={
@@ -1541,7 +2163,7 @@ export default function TarefasPage() {
         <section className="mb-6 grid grid-cols-3 gap-3">
           <div className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,.045)]">
             <p className="text-[9px] font-black tracking-[0.12em] text-slate-400">
-              PENDENTES
+              DISPONÍVEIS
             </p>
 
             <p className="mt-2 text-2xl font-black text-[#1F2937]">
@@ -1620,6 +2242,7 @@ export default function TarefasPage() {
                 ({
                   tarefa,
                   status,
+                  estadoHorario,
                 }) => {
                   const atualizando =
                     tarefaEmAtualizacao ===
@@ -1633,6 +2256,18 @@ export default function TarefasPage() {
                     status ===
                     "Aguardando aprovação";
 
+                  const aindaNao =
+                    status ===
+                      "Pendente" &&
+                    estadoHorario ===
+                      "ainda_nao";
+
+                  const encerrada =
+                    status ===
+                      "Pendente" &&
+                    estadoHorario ===
+                      "encerrada";
+
                   return (
                     <article
                       key={
@@ -1643,6 +2278,10 @@ export default function TarefasPage() {
                           ? "bg-[#F2FBF4]"
                           : esperando
                           ? "bg-[#FFF9EC]"
+                          : encerrada
+                          ? "bg-[#F2F4F7]"
+                          : aindaNao
+                          ? "bg-[#F7F5FF]"
                           : "bg-white"
                       }`}
                     >
@@ -1654,6 +2293,30 @@ export default function TarefasPage() {
                             }
                           </span>
 
+                          {tarefa.repeatMode ===
+                            "daily" && (
+                            <span className="rounded-full bg-[#F1ECFF] px-2.5 py-1 text-[9px] font-black text-[#7C4BE8]">
+                              ↻ Diária
+                            </span>
+                          )}
+
+                          {tarefa.repeatMode ===
+                            "once" && (
+                            <span className="rounded-full bg-[#EEF6FF] px-2.5 py-1 text-[9px] font-black text-[#4B7FBF]">
+                              Uma vez
+                            </span>
+                          )}
+
+                          {tarefa.repeatMode ===
+                            "daily" && (
+                            <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-500 shadow-sm">
+                              ◷{" "}
+                              {textoHorario(
+                                tarefa
+                              )}
+                            </span>
+                          )}
+
                           {esperando && (
                             <span className="rounded-full bg-[#FFE9AD] px-2.5 py-1 text-[9px] font-black text-[#B87C00]">
                               Aguardando aprovação
@@ -1662,40 +2325,107 @@ export default function TarefasPage() {
 
                           {concluida && (
                             <span className="rounded-full bg-[#DDF5E3] px-2.5 py-1 text-[9px] font-black text-[#25853D]">
-                              Aprovada
+                              {tarefa.repeatMode ===
+                              "daily"
+                                ? "Concluída hoje"
+                                : "Aprovada"}
+                            </span>
+                          )}
+
+                          {aindaNao && (
+                            <span className="rounded-full bg-[#E8E1FF] px-2.5 py-1 text-[9px] font-black text-[#7250C8]">
+                              Ainda não disponível
+                            </span>
+                          )}
+
+                          {encerrada && (
+                            <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[9px] font-black text-slate-500">
+                              Encerrada hoje
                             </span>
                           )}
                         </div>
 
-                        <h2 className="text-lg font-black">
+                        <h2
+                          className={`text-lg font-black ${
+                            encerrada
+                              ? "text-slate-500"
+                              : ""
+                          }`}
+                        >
                           {
                             tarefa.titulo
                           }
                         </h2>
 
-                        <p className="mt-1 text-xs text-slate-400">
-                          +1 casa quando outro jogador aprovar sua foto
-                        </p>
+                        {aindaNao ? (
+                          <p className="mt-1 text-xs font-bold text-[#7250C8]">
+                            Disponível a partir das{" "}
+                            {formatarHora(
+                              tarefa.availableFrom
+                            )}
+                          </p>
+                        ) : encerrada ? (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {tarefa.repeatMode ===
+                            "daily"
+                              ? `O prazo de hoje terminou${
+                                  tarefa.availableUntil
+                                    ? ` às ${formatarHora(
+                                        tarefa.availableUntil
+                                      )}`
+                                    : ""
+                                }. Ela volta amanhã.`
+                              : "Esta tarefa não está disponível."}
+                          </p>
+                        ) : concluida &&
+                          tarefa.repeatMode ===
+                            "daily" ? (
+                          <p className="mt-1 text-xs text-slate-400">
+                            +1 casa conquistada hoje. Amanhã esta tarefa estará disponível novamente.
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-slate-400">
+                            +1 casa quando outro jogador aprovar sua foto
+                          </p>
+                        )}
                       </div>
 
                       <div className="mt-4 shrink-0 sm:mt-0">
                         {status ===
-                          "Pendente" && (
-                          <button
-                            onClick={() =>
-                              abrirCamera(
-                                tarefa
-                              )
-                            }
-                            disabled={
-                              atualizando
-                            }
-                            className="w-full rounded-2xl bg-[#22C7D9] px-5 py-3.5 text-sm font-black text-white shadow-[0_8px_20px_rgba(34,199,217,.16)] transition hover:-translate-y-0.5 disabled:opacity-50 sm:w-auto"
-                          >
-                            {atualizando
-                              ? "Enviando..."
-                              : "Concluir tarefa"}
-                          </button>
+                          "Pendente" &&
+                          estadoHorario ===
+                            "disponivel" && (
+                            <button
+                              onClick={() =>
+                                abrirCamera(
+                                  tarefa
+                                )
+                              }
+                              disabled={
+                                atualizando
+                              }
+                              className="w-full rounded-2xl bg-[#22C7D9] px-5 py-3.5 text-sm font-black text-white shadow-[0_8px_20px_rgba(34,199,217,.16)] transition hover:-translate-y-0.5 disabled:opacity-50 sm:w-auto"
+                            >
+                              {atualizando
+                                ? "Enviando..."
+                                : "Concluir tarefa"}
+                            </button>
+                          )}
+
+                        {aindaNao && (
+                          <div className="rounded-2xl bg-[#E8E1FF] px-5 py-3.5 text-center text-sm font-black text-[#7250C8]">
+                            {tarefa.availableFrom
+                              ? `Abre às ${formatarHora(
+                                  tarefa.availableFrom
+                                )}`
+                              : "Indisponível"}
+                          </div>
+                        )}
+
+                        {encerrada && (
+                          <div className="rounded-2xl bg-slate-200 px-5 py-3.5 text-center text-sm font-black text-slate-500">
+                            Volta amanhã
+                          </div>
                         )}
 
                         {esperando && (
@@ -1723,7 +2453,7 @@ export default function TarefasPage() {
           </p>
 
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-            O administrador cria as tarefas da partida. Todos recebem as mesmas missões. Para concluir, você registra uma foto naquele momento. Quando outro jogador aprovar sua comprovação, você avança uma casa.
+            O administrador pode criar tarefas únicas ou diárias. As tarefas diárias renovam todos os dias e podem ter um horário específico para conclusão. Você registra a foto naquele momento e, quando outro jogador aprovar, avança uma casa.
           </p>
         </section>
       </div>
