@@ -14,6 +14,33 @@ function Logo() {
   );
 }
 
+function GoogleIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5 shrink-0"
+      aria-hidden="true"
+    >
+      <path
+        fill="#4285F4"
+        d="M21.6 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.39a4.61 4.61 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.97-4.33 2.97-7.37Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 4.97-.9 6.63-2.4l-3.24-2.51c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.6A10 10 0 0 0 12 22Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.39 13.92A6.03 6.03 0 0 1 6.08 12c0-.67.11-1.32.31-1.92v-2.6H3.04A10 10 0 0 0 2 12c0 1.62.39 3.15 1.04 4.52l3.35-2.6Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.95c1.47 0 2.79.51 3.83 1.5l2.87-2.87C16.97 2.97 14.7 2 12 2a10 10 0 0 0-8.96 5.48l3.35 2.6C7.18 7.71 9.39 5.95 12 5.95Z"
+      />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
 
@@ -22,8 +49,33 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [carregandoGoogle, setCarregandoGoogle] = useState(false);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
+
+  async function entrarComGoogle() {
+    setCarregandoGoogle(true);
+    setErro("");
+    setMensagem("");
+
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/`
+        : "https://dotowin.vercel.app/";
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) {
+      console.error("Erro ao entrar com Google:", error);
+      setErro("Não foi possível entrar com o Google.");
+      setCarregandoGoogle(false);
+    }
+  }
 
   async function enviarFormulario(event: FormEvent) {
     event.preventDefault();
@@ -144,6 +196,29 @@ export default function LoginPage() {
             </p>
           </div>
 
+          <button
+            type="button"
+            onClick={entrarComGoogle}
+            disabled={carregandoGoogle || carregando}
+            className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#E8EEF5] bg-white px-5 py-4 text-sm font-black text-slate-700 transition hover:-translate-y-0.5 hover:bg-[#F8FBFE] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <GoogleIcon />
+
+            {carregandoGoogle
+              ? "ABRINDO GOOGLE..."
+              : "CONTINUAR COM GOOGLE"}
+          </button>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-100" />
+
+            <span className="text-[10px] font-black tracking-[0.14em] text-slate-300">
+              OU
+            </span>
+
+            <div className="h-px flex-1 bg-slate-100" />
+          </div>
+
           <form onSubmit={enviarFormulario} className="space-y-4">
             {modo === "cadastro" && (
               <div>
@@ -207,7 +282,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={carregando}
+              disabled={carregando || carregandoGoogle}
               className={`w-full rounded-2xl px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(15,23,42,.1)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 ${
                 modo === "login"
                   ? "bg-[#22C7D9]"
