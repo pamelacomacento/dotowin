@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -23,23 +24,80 @@ type Submissao = {
   jogadorCor: string;
 };
 
+function Logo() {
+  return (
+    <img
+      src="/dotowin-logo.png"
+      alt="DoToWin"
+      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+    />
+  );
+}
+
+function PeaoMini({
+  cor,
+}: {
+  cor: string;
+}) {
+  return (
+    <div className="relative h-11 w-9 shrink-0">
+      <div
+        className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
+        style={{
+          backgroundColor: cor,
+          boxShadow:
+            "0 3px 8px rgba(15,23,42,.12)",
+        }}
+      />
+
+      <div
+        className="absolute bottom-[6px] left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full border-x-2 border-white"
+        style={{
+          backgroundColor: cor,
+        }}
+      />
+
+      <div
+        className="absolute bottom-0 left-1/2 h-2.5 w-9 -translate-x-1/2 rounded-full border-2 border-white"
+        style={{
+          backgroundColor: cor,
+          boxShadow:
+            "0 3px 8px rgba(15,23,42,.12)",
+        }}
+      />
+    </div>
+  );
+}
+
 export default function AprovacoesPage() {
   const router = useRouter();
 
-  const [jogadorAtual, setJogadorAtual] =
-    useState<JogadorAtual | null>(null);
+  const [
+    jogadorAtual,
+    setJogadorAtual,
+  ] = useState<JogadorAtual | null>(
+    null
+  );
 
-  const [submissoes, setSubmissoes] =
-    useState<Submissao[]>([]);
+  const [
+    submissoes,
+    setSubmissoes,
+  ] = useState<Submissao[]>([]);
 
-  const [carregando, setCarregando] =
-    useState(true);
+  const [
+    carregando,
+    setCarregando,
+  ] = useState(true);
 
-  const [processandoId, setProcessandoId] =
-    useState<number | null>(null);
+  const [
+    processandoId,
+    setProcessandoId,
+  ] = useState<number | null>(null);
 
-  const [mensagemErro, setMensagemErro] =
-    useState("");
+  const [
+    mensagemErro,
+    setMensagemErro,
+  ] = useState("");
 
   useEffect(() => {
     carregarAprovacoes();
@@ -50,7 +108,8 @@ export default function AprovacoesPage() {
       return;
     }
 
-    const gameId = jogadorAtual.gameId;
+    const gameId =
+      jogadorAtual.gameId;
 
     const canal = supabase
       .channel(
@@ -96,7 +155,10 @@ export default function AprovacoesPage() {
     return () => {
       supabase.removeChannel(canal);
     };
-  }, [jogadorAtual?.gameId, jogadorAtual?.id]);
+  }, [
+    jogadorAtual?.gameId,
+    jogadorAtual?.id,
+  ]);
 
   async function carregarAprovacoes(
     silencioso = false
@@ -110,7 +172,8 @@ export default function AprovacoesPage() {
     const {
       data: { user },
       error: erroUsuario,
-    } = await supabase.auth.getUser();
+    } =
+      await supabase.auth.getUser();
 
     if (erroUsuario || !user) {
       router.push("/login");
@@ -127,7 +190,8 @@ export default function AprovacoesPage() {
       return;
     }
 
-    const gameId = Number(gameIdSalvo);
+    const gameId =
+      Number(gameIdSalvo);
 
     if (!Number.isFinite(gameId)) {
       localStorage.removeItem(
@@ -146,8 +210,14 @@ export default function AprovacoesPage() {
       .select(
         "id, name, color, profile_id, game_id"
       )
-      .eq("profile_id", user.id)
-      .eq("game_id", gameId)
+      .eq(
+        "profile_id",
+        user.id
+      )
+      .eq(
+        "game_id",
+        gameId
+      )
       .maybeSingle();
 
     if (erroJogador) {
@@ -177,14 +247,21 @@ export default function AprovacoesPage() {
       return;
     }
 
-    const jogadorFormatado: JogadorAtual = {
-      id: jogadorData.id,
-      nome: jogadorData.name,
-      cor:
-        jogadorData.color ||
-        "#38bdf8",
-      gameId: jogadorData.game_id,
-    };
+    const jogadorFormatado: JogadorAtual =
+      {
+        id:
+          jogadorData.id,
+
+        nome:
+          jogadorData.name,
+
+        cor:
+          jogadorData.color ||
+          "#38BDF8",
+
+        gameId:
+          jogadorData.game_id,
+      };
 
     setJogadorAtual(
       jogadorFormatado
@@ -195,13 +272,17 @@ export default function AprovacoesPage() {
       error: erroPlayersDaPartida,
     } = await supabase
       .from("players")
-      .select("id, name, color")
+      .select(
+        "id, name, color"
+      )
       .eq(
         "game_id",
         jogadorFormatado.gameId
       );
 
-    if (erroPlayersDaPartida) {
+    if (
+      erroPlayersDaPartida
+    ) {
       console.error(
         "Erro ao carregar jogadores da partida:",
         erroPlayersDaPartida
@@ -216,18 +297,22 @@ export default function AprovacoesPage() {
     }
 
     const idsOutrosJogadores =
-      (playersDaPartida || [])
+      (
+        playersDaPartida || []
+      )
         .filter(
           (player) =>
             player.id !==
             jogadorFormatado.id
         )
         .map(
-          (player) => player.id
+          (player) =>
+            player.id
         );
 
     if (
-      idsOutrosJogadores.length === 0
+      idsOutrosJogadores.length ===
+      0
     ) {
       setSubmissoes([]);
       setCarregando(false);
@@ -296,7 +381,8 @@ export default function AprovacoesPage() {
     const taskIds = [
       ...new Set(
         submissionsFiltradas.map(
-          (item) => item.task_id
+          (item) =>
+            item.task_id
         )
       ),
     ];
@@ -309,7 +395,10 @@ export default function AprovacoesPage() {
       .select(
         "id, title, category, game_id"
       )
-      .in("id", taskIds)
+      .in(
+        "id",
+        taskIds
+      )
       .eq(
         "game_id",
         jogadorFormatado.gameId
@@ -331,8 +420,11 @@ export default function AprovacoesPage() {
 
     const tarefasValidas =
       new Set(
-        (tasksData || []).map(
-          (task) => task.id
+        (
+          tasksData || []
+        ).map(
+          (task) =>
+            task.id
         )
       );
 
@@ -346,62 +438,69 @@ export default function AprovacoesPage() {
               submission.task_id
             )
         )
-        .map((submission) => {
-          const tarefa =
-            (
-              tasksData || []
-            ).find(
-              (item) =>
-                item.id ===
-                submission.task_id
-            );
+        .map(
+          (submission) => {
+            const tarefa =
+              (
+                tasksData || []
+              ).find(
+                (item) =>
+                  item.id ===
+                  submission.task_id
+              );
 
-          const jogador =
-            (
-              playersDaPartida || []
-            ).find(
-              (item) =>
-                item.id ===
-                submission.player_id
-            );
+            const jogador =
+              (
+                playersDaPartida || []
+              ).find(
+                (item) =>
+                  item.id ===
+                  submission.player_id
+              );
 
-          return {
-            id:
-              submission.id,
+            return {
+              id:
+                submission.id,
 
-            taskId:
-              submission.task_id,
+              taskId:
+                submission.task_id,
 
-            playerId:
-              submission.player_id,
+              playerId:
+                submission.player_id,
 
-            status:
-              submission.status,
+              status:
+                submission.status,
 
-            photoUrl:
-              submission.photo_url ||
-              null,
+              photoUrl:
+                submission.photo_url ||
+                null,
 
-            tarefaTitulo:
-              tarefa?.title ||
-              "Tarefa",
+              tarefaTitulo:
+                tarefa?.title ||
+                "Tarefa",
 
-            tarefaCategoria:
-              tarefa?.category ||
-              "Geral",
+              tarefaCategoria:
+                tarefa?.category ||
+                "Geral",
 
-            jogadorNome:
-              jogador?.name ||
-              "Jogador",
+              jogadorNome:
+                jogador?.name ||
+                "Jogador",
 
-            jogadorCor:
-              jogador?.color ||
-              "#38bdf8",
-          };
-        });
+              jogadorCor:
+                jogador?.color ||
+                "#38BDF8",
+            };
+          }
+        );
 
-    setSubmissoes(lista);
-    setCarregando(false);
+    setSubmissoes(
+      lista
+    );
+
+    setCarregando(
+      false
+    );
   }
 
   async function aprovarSubmissao(
@@ -432,14 +531,15 @@ export default function AprovacoesPage() {
 
     setMensagemErro("");
 
-    const { error } =
-      await supabase.rpc(
-        "approve_submission",
-        {
-          p_submission_id:
-            submissao.id,
-        }
-      );
+    const {
+      error,
+    } = await supabase.rpc(
+      "approve_submission",
+      {
+        p_submission_id:
+          submissao.id,
+      }
+    );
 
     if (error) {
       console.error(
@@ -482,7 +582,10 @@ export default function AprovacoesPage() {
         mensagem
       );
 
-      setProcessandoId(null);
+      setProcessandoId(
+        null
+      );
+
       return;
     }
 
@@ -495,7 +598,9 @@ export default function AprovacoesPage() {
         )
     );
 
-    setProcessandoId(null);
+    setProcessandoId(
+      null
+    );
   }
 
   async function recusarSubmissao(
@@ -526,14 +631,15 @@ export default function AprovacoesPage() {
 
     setMensagemErro("");
 
-    const { error } =
-      await supabase.rpc(
-        "reject_submission",
-        {
-          p_submission_id:
-            submissao.id,
-        }
-      );
+    const {
+      error,
+    } = await supabase.rpc(
+      "reject_submission",
+      {
+        p_submission_id:
+          submissao.id,
+      }
+    );
 
     if (error) {
       console.error(
@@ -576,7 +682,10 @@ export default function AprovacoesPage() {
         mensagem
       );
 
-      setProcessandoId(null);
+      setProcessandoId(
+        null
+      );
+
       return;
     }
 
@@ -589,7 +698,9 @@ export default function AprovacoesPage() {
         )
     );
 
-    setProcessandoId(null);
+    setProcessandoId(
+      null
+    );
   }
 
   async function sair() {
@@ -599,107 +710,161 @@ export default function AprovacoesPage() {
       "dotowin_game_id"
     );
 
-    router.push("/login");
+    router.push(
+      "/login"
+    );
+
     router.refresh();
   }
 
   return (
-    <main className="min-h-screen bg-[#020713] text-white">
-      <div className="mx-auto max-w-[900px] p-5">
-        <header className="mb-6">
-          <a
-            href="/"
-            className="mb-3 inline-block text-sm font-bold text-slate-400 transition hover:text-white"
-          >
-            ← Voltar ao jogo
-          </a>
+    <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-10">
+      <div className="mx-auto max-w-[1050px] px-4 py-4 sm:px-6 lg:py-6">
+        <header className="mb-7 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
+          <div className="flex items-center gap-5">
+            <Logo />
 
-          <p className="text-xs font-black tracking-[0.25em] text-violet-400">
-            DOTOWIN
-          </p>
+            <div className="hidden h-11 w-px bg-slate-200 sm:block" />
 
-          <h1 className="mt-2 text-3xl font-black">
-            Aprovações
-          </h1>
+            <Link
+              href="/jogo"
+              className="hidden rounded-xl px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-[#F5F8FC] hover:text-slate-600 sm:block"
+            >
+              ← Jogo
+            </Link>
+          </div>
 
-          <p className="mt-2 max-w-xl text-sm text-slate-400">
-            Confira as comprovações dos outros jogadores da sua partida antes
-            de liberar o avanço.
-          </p>
-        </header>
+          {jogadorAtual && (
+            <div className="flex items-center gap-3 rounded-2xl bg-[#F8FBFE] px-3 py-2">
+              <PeaoMini
+                cor={
+                  jogadorAtual.cor
+                }
+              />
 
-        {jogadorAtual && (
-          <section className="mb-6 rounded-2xl border border-white/[0.07] bg-[#071329] p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black tracking-[0.2em] text-slate-500">
-                  APROVANDO COMO
+              <div className="hidden sm:block">
+                <p className="max-w-[150px] truncate text-xs font-black">
+                  {jogadorAtual.nome}
                 </p>
 
-                <div className="mt-2 flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{
-                      backgroundColor:
-                        jogadorAtual.cor,
-
-                      boxShadow: `0 0 10px ${jogadorAtual.cor}`,
-                    }}
-                  />
-
-                  <p className="font-black">
-                    {
-                      jogadorAtual.nome
-                    }
-                  </p>
-                </div>
+                <p className="text-[9px] font-bold text-slate-400">
+                  Aprovando
+                </p>
               </div>
 
               <button
-                onClick={sair}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-xs font-black text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                onClick={
+                  sair
+                }
+                className="ml-1 rounded-xl px-3 py-2 text-[10px] font-black text-slate-400 transition hover:bg-white hover:text-red-500"
               >
-                SAIR
+                Sair
               </button>
             </div>
-          </section>
-        )}
+          )}
+        </header>
+
+        <section className="mb-7">
+          <p className="text-[10px] font-black tracking-[0.24em] text-[#8B5CF6]">
+            APROVAÇÕES
+          </p>
+
+          <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+            Sua decisão move a corrida
+          </h1>
+
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Confira as fotos dos outros jogadores. Se a comprovação corresponder à tarefa, aprove para liberar +1 casa.
+          </p>
+        </section>
 
         {mensagemErro && (
-          <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/[0.06] p-4 text-sm font-bold text-red-300">
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-600">
             {mensagemErro}
           </div>
         )}
 
+        {jogadorAtual && (
+          <section className="mb-6 flex flex-col gap-4 rounded-[24px] bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,.05)] sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-[#F8FBFE] p-2">
+                <PeaoMini
+                  cor={
+                    jogadorAtual.cor
+                  }
+                />
+              </div>
+
+              <div>
+                <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                  APROVANDO COMO
+                </p>
+
+                <p className="mt-1 font-black">
+                  {jogadorAtual.nome}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#F1ECFF] px-4 py-3">
+              <p className="text-[9px] font-black tracking-[0.14em] text-[#8B5CF6]">
+                AGUARDANDO VOCÊ
+              </p>
+
+              <p className="mt-1 text-2xl font-black text-[#8B5CF6]">
+                {submissoes.length}
+              </p>
+            </div>
+          </section>
+        )}
+
         {carregando && (
-          <div className="rounded-2xl border border-white/[0.07] bg-[#071329] p-6 text-center text-sm text-slate-400">
-            Carregando aprovações...
+          <div className="flex min-h-[260px] items-center justify-center rounded-[28px] bg-white shadow-[0_10px_30px_rgba(15,23,42,.05)]">
+            <div className="text-center">
+              <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-100 border-t-[#8B5CF6]" />
+
+              <p className="mt-3 text-sm font-bold text-slate-400">
+                Carregando aprovações...
+              </p>
+            </div>
           </div>
         )}
 
         {!carregando &&
-          submissoes.length === 0 && (
-            <div className="rounded-2xl border border-white/[0.07] bg-[#071329] p-8 text-center">
-              <div className="text-4xl">
-                ✓
+          submissoes.length ===
+            0 && (
+            <div className="rounded-[30px] bg-white p-8 text-center shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-10">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#EEFBEF]">
+                <span className="text-3xl font-black text-[#22A447]">
+                  ✓
+                </span>
               </div>
 
-              <h2 className="mt-4 text-xl font-black">
+              <h2 className="mt-5 text-xl font-black">
                 Tudo em dia
               </h2>
 
-              <p className="mt-2 text-sm text-slate-400">
-                Nenhuma comprovação de outro jogador da sua partida está
-                aguardando aprovação.
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+                Nenhuma comprovação de outro jogador está aguardando sua aprovação agora.
               </p>
+
+              <Link
+                href="/jogo"
+                className="mt-6 inline-flex rounded-2xl bg-[#F5F8FC] px-5 py-3 text-sm font-black text-slate-500 transition hover:bg-slate-100"
+              >
+                Voltar para o jogo
+              </Link>
             </div>
           )}
 
         {!carregando &&
-          submissoes.length > 0 && (
+          submissoes.length >
+            0 && (
             <section className="space-y-5">
               {submissoes.map(
-                (submissao) => {
+                (
+                  submissao
+                ) => {
                   const processando =
                     processandoId ===
                     submissao.id;
@@ -709,104 +874,164 @@ export default function AprovacoesPage() {
                       key={
                         submissao.id
                       }
-                      className="overflow-hidden rounded-2xl border border-violet-400/10 bg-[#071329] shadow-xl"
+                      className="overflow-hidden rounded-[30px] bg-white shadow-[0_12px_36px_rgba(15,23,42,.06)]"
                     >
-                      {submissao.photoUrl ? (
-                        <div className="border-b border-white/[0.06] bg-black/20">
-                          <img
-                            src={
-                              submissao.photoUrl
-                            }
-                            alt={`Comprovação de ${submissao.jogadorNome}`}
-                            className="max-h-[420px] w-full object-contain"
-                          />
-                        </div>
-                      ) : (
-                        <div className="border-b border-white/[0.06] bg-white/[0.02] p-6 text-center text-sm text-slate-500">
-                          Nenhuma foto enviada.
-                        </div>
-                      )}
+                      <div className="grid lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,.82fr)]">
+                        <div className="relative flex min-h-[300px] items-center justify-center bg-[#EEF2F6] sm:min-h-[380px]">
+                          {submissao.photoUrl ? (
+                            <img
+                              src={
+                                submissao.photoUrl
+                              }
+                              alt={`Comprovação de ${submissao.jogadorNome}`}
+                              className="max-h-[520px] w-full object-contain"
+                            />
+                          ) : (
+                            <div className="p-8 text-center">
+                              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-2xl text-slate-300 shadow-sm">
+                                ◻
+                              </div>
 
-                      <div className="p-5">
-                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="mt-3 text-sm font-bold text-slate-400">
+                                Nenhuma foto enviada
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    submissao.jogadorCor,
+                                }}
+                              />
+
+                              <span className="text-[10px] font-black text-slate-600">
+                                {
+                                  submissao.jogadorNome
+                                }
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col p-5 sm:p-6">
                           <div>
-                            <div className="mb-3 flex flex-wrap items-center gap-2">
-                              <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-[#F5F8FC] px-2.5 py-1 text-[9px] font-black text-slate-400">
                                 {
                                   submissao.tarefaCategoria
                                 }
                               </span>
 
-                              <span className="rounded-full bg-orange-400/10 px-2.5 py-1 text-[10px] font-bold text-orange-300">
+                              <span className="rounded-full bg-[#FFF0C7] px-2.5 py-1 text-[9px] font-black text-[#B87C00]">
                                 Aguardando aprovação
                               </span>
                             </div>
 
-                            <div className="mb-3 flex items-center gap-2">
-                              <span
-                                className="h-3 w-3 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    submissao.jogadorCor,
+                            <div className="mt-5 flex items-center gap-3">
+                              <div className="rounded-2xl bg-[#F8FBFE] p-2">
+                                <PeaoMini
+                                  cor={
+                                    submissao.jogadorCor
+                                  }
+                                />
+                              </div>
 
-                                  boxShadow: `0 0 10px ${submissao.jogadorCor}`,
-                                }}
-                              />
+                              <div>
+                                <p className="text-[9px] font-black tracking-[0.16em] text-slate-400">
+                                  JOGADOR
+                                </p>
 
-                              <p className="text-sm font-black">
-                                {
-                                  submissao.jogadorNome
-                                }
-                              </p>
+                                <p className="mt-1 font-black">
+                                  {
+                                    submissao.jogadorNome
+                                  }
+                                </p>
+                              </div>
                             </div>
 
-                            <h2 className="text-lg font-black">
-                              {
-                                submissao.tarefaTitulo
-                              }
-                            </h2>
+                            <div className="mt-6">
+                              <p className="text-[9px] font-black tracking-[0.16em] text-[#8B5CF6]">
+                                TAREFA
+                              </p>
 
-                            <p className="mt-2 text-xs text-slate-500">
-                              Se aprovada,{" "}
-                              {
-                                submissao.jogadorNome
-                              }{" "}
-                              avança +1 casa.
-                            </p>
+                              <h2 className="mt-2 text-xl font-black leading-snug">
+                                {
+                                  submissao.tarefaTitulo
+                                }
+                              </h2>
+
+                              <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                                Confira a foto com atenção. Se ela comprovar a tarefa,{" "}
+                                <strong className="text-[#1F2937]">
+                                  {
+                                    submissao.jogadorNome
+                                  }
+                                </strong>{" "}
+                                avança exatamente uma casa.
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="flex gap-3">
-                            <button
-                              onClick={() =>
-                                recusarSubmissao(
-                                  submissao
-                                )
-                              }
-                              disabled={
-                                processando
-                              }
-                              className="rounded-xl border border-red-400/20 bg-red-400/[0.05] px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {processando
-                                ? "SALVANDO..."
-                                : "RECUSAR"}
-                            </button>
+                          <div className="mt-auto pt-7">
+                            <div className="mb-3 rounded-2xl bg-[#F8FBFE] p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] font-black tracking-[0.14em] text-slate-400">
+                                    SUA DECISÃO
+                                  </p>
 
-                            <button
-                              onClick={() =>
-                                aprovarSubmissao(
-                                  submissao
-                                )
-                              }
-                              disabled={
-                                processando
-                              }
-                              className="rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 px-5 py-3 text-sm font-black text-[#02110c] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {processando
-                                ? "SALVANDO..."
-                                : "APROVAR"}
-                            </button>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    A prova corresponde à tarefa?
+                                  </p>
+                                </div>
+
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1ECFF] font-black text-[#8B5CF6]">
+                                  ?
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                onClick={() =>
+                                  recusarSubmissao(
+                                    submissao
+                                  )
+                                }
+                                disabled={
+                                  processando
+                                }
+                                className="rounded-2xl bg-red-50 px-4 py-4 text-sm font-black text-red-500 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {processando
+                                  ? "Salvando..."
+                                  : "Recusar"}
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  aprovarSubmissao(
+                                    submissao
+                                  )
+                                }
+                                disabled={
+                                  processando
+                                }
+                                className="rounded-2xl bg-[#22C55E] px-4 py-4 text-sm font-black text-white shadow-[0_10px_22px_rgba(34,197,94,.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {processando
+                                  ? "Salvando..."
+                                  : "✓ Aprovar"}
+                              </button>
+                            </div>
+
+                            <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
+                              Você nunca aprova a própria comprovação.
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -816,7 +1041,73 @@ export default function AprovacoesPage() {
               )}
             </section>
           )}
+
+        <section className="mt-6 rounded-[26px] bg-[#F1ECFF] p-5 sm:p-6">
+          <p className="text-[10px] font-black tracking-[0.18em] text-[#8B5CF6]">
+            POR QUE OUTRO JOGADOR APROVA?
+          </p>
+
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+            O DoToWin usa validação entre jogadores. Você registra a comprovação da sua tarefa e outra pessoa da mesma partida decide se ela é válida. Só depois da aprovação o avanço acontece.
+          </p>
+        </section>
       </div>
+
+      <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] bg-white p-2 shadow-[0_14px_38px_rgba(15,23,42,.14)] lg:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          <Link
+            href="/jogo"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              🎮
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Jogo
+            </span>
+          </Link>
+
+          <Link
+            href="/tarefas"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              ▣
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Tarefas
+            </span>
+          </Link>
+
+          <Link
+            href="/aprovacoes"
+            className="flex flex-col items-center justify-center rounded-2xl bg-[#F1ECFF] px-2 py-2.5 text-[#8B5CF6]"
+          >
+            <span className="text-lg">
+              👍
+            </span>
+
+            <span className="mt-1 text-[10px] font-black">
+              Aprovações
+            </span>
+          </Link>
+
+          <Link
+            href="/"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              ⌂
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Início
+            </span>
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }

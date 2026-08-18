@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -33,6 +34,51 @@ type Submissao = {
   status: StatusSubmissao;
   photoUrl: string | null;
 };
+
+function Logo() {
+  return (
+    <img
+      src="/dotowin-logo.png"
+      alt="DoToWin"
+      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+    />
+  );
+}
+
+function PeaoMini({
+  cor,
+}: {
+  cor: string;
+}) {
+  return (
+    <div className="relative h-11 w-9 shrink-0">
+      <div
+        className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
+        style={{
+          backgroundColor: cor,
+          boxShadow:
+            "0 3px 8px rgba(15,23,42,.12)",
+        }}
+      />
+
+      <div
+        className="absolute bottom-[6px] left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full border-x-2 border-white"
+        style={{
+          backgroundColor: cor,
+        }}
+      />
+
+      <div
+        className="absolute bottom-0 left-1/2 h-2.5 w-9 -translate-x-1/2 rounded-full border-2 border-white"
+        style={{
+          backgroundColor: cor,
+          boxShadow:
+            "0 3px 8px rgba(15,23,42,.12)",
+        }}
+      />
+    </div>
+  );
+}
 
 export default function TarefasPage() {
   const router = useRouter();
@@ -358,7 +404,7 @@ export default function TarefasPage() {
         nome: jogadorData.name,
         cor:
           jogadorData.color ||
-          "#38bdf8",
+          "#38BDF8",
         gameId:
           jogadorData.game_id,
       };
@@ -1065,7 +1111,7 @@ export default function TarefasPage() {
     ).length;
 
   return (
-    <main className="min-h-screen bg-[#020713] text-white">
+    <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-10">
       <canvas
         ref={canvasRef}
         className="hidden"
@@ -1073,11 +1119,11 @@ export default function TarefasPage() {
 
       {cameraAberta &&
         tarefaSelecionada && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#01040c]/95 p-3 backdrop-blur-xl">
-            <div className="flex max-h-[96vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[28px] border border-white/[0.1] bg-[#061329] shadow-[0_30px_100px_rgba(0,0,0,.7)]">
-              <div className="flex items-center justify-between border-b border-white/[0.07] p-4 sm:p-5">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/90 p-3 backdrop-blur-md">
+            <div className="flex max-h-[96vh] w-full max-w-[720px] flex-col overflow-hidden rounded-[30px] bg-white shadow-[0_30px_100px_rgba(0,0,0,.35)]">
+              <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black tracking-[0.25em] text-cyan-400">
+                  <p className="text-[10px] font-black tracking-[0.22em] text-[#22C7D9]">
                     COMPROVAÇÃO
                   </p>
 
@@ -1096,7 +1142,7 @@ export default function TarefasPage() {
                     tarefaEmAtualizacao ===
                     tarefaSelecionada.id
                   }
-                  className="ml-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-lg text-slate-300 transition hover:bg-white/[0.1] disabled:opacity-50"
+                  className="ml-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5F8FC] text-lg text-slate-400 transition hover:bg-slate-100 disabled:opacity-50"
                 >
                   ✕
                 </button>
@@ -1115,16 +1161,14 @@ export default function TarefasPage() {
                       className="h-full max-h-[65vh] w-full object-cover"
                     />
 
-                    <div className="pointer-events-none absolute inset-0 border-[2px] border-white/[0.04]" />
-
-                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[82%] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border border-white/20" />
+                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[82%] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-2 border-white/30" />
 
                     {iniciandoCamera && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                         <div className="text-center">
-                          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400" />
+                          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-[#22C7D9]" />
 
-                          <p className="mt-3 text-sm font-bold text-slate-300">
+                          <p className="mt-3 text-sm font-bold text-white">
                             Abrindo câmera...
                           </p>
                         </div>
@@ -1144,10 +1188,10 @@ export default function TarefasPage() {
                 )}
               </div>
 
-              <div className="border-t border-white/[0.07] p-4 sm:p-5">
+              <div className="border-t border-slate-100 p-4 sm:p-5">
                 {!fotoPreview ? (
                   <>
-                    <p className="mb-4 text-center text-xs text-slate-400">
+                    <p className="mb-4 text-center text-xs text-slate-500">
                       Tire a foto agora para comprovar a tarefa.
                     </p>
 
@@ -1158,7 +1202,7 @@ export default function TarefasPage() {
                       disabled={
                         iniciandoCamera
                       }
-                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-600 px-5 py-4 text-sm font-black tracking-wide shadow-[0_12px_35px_rgba(59,130,246,.3)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.2)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white">
                         ●
@@ -1177,7 +1221,7 @@ export default function TarefasPage() {
                         tarefaEmAtualizacao ===
                         tarefaSelecionada.id
                       }
-                      className="rounded-2xl border border-white/[0.1] bg-white/[0.05] px-5 py-4 text-sm font-black text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+                      className="rounded-2xl bg-[#F5F8FC] px-5 py-4 text-sm font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
                     >
                       TIRAR OUTRA
                     </button>
@@ -1190,7 +1234,7 @@ export default function TarefasPage() {
                         tarefaEmAtualizacao ===
                         tarefaSelecionada.id
                       }
-                      className="rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 px-5 py-4 text-sm font-black text-[#02110c] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-2xl bg-[#22C55E] px-5 py-4 text-sm font-black text-white shadow-[0_10px_22px_rgba(34,197,94,.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {tarefaEmAtualizacao ===
                       tarefaSelecionada.id
@@ -1200,7 +1244,7 @@ export default function TarefasPage() {
                   </div>
                 )}
 
-                <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-500">
+                <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
                   A comprovação precisa ser registrada pela câmera neste momento.
                 </p>
               </div>
@@ -1208,27 +1252,19 @@ export default function TarefasPage() {
           </div>
         )}
 
-      <div className="mx-auto max-w-[1100px] p-5">
-        <header className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <a
-              href="/"
-              className="mb-3 inline-block text-sm font-bold text-slate-400 transition hover:text-white"
+      <div className="mx-auto max-w-[1180px] px-4 py-4 sm:px-6 lg:py-6">
+        <header className="mb-7 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
+          <div className="flex items-center gap-5">
+            <Logo />
+
+            <div className="hidden h-11 w-px bg-slate-200 sm:block" />
+
+            <Link
+              href="/jogo"
+              className="hidden rounded-xl px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-[#F5F8FC] hover:text-slate-600 sm:block"
             >
-              ← Voltar ao jogo
-            </a>
-
-            <p className="text-xs font-black tracking-[0.25em] text-cyan-400">
-              DOTOWIN
-            </p>
-
-            <h1 className="mt-2 text-3xl font-black">
-              Tarefas da partida
-            </h1>
-
-            <p className="mt-2 max-w-xl text-sm text-slate-400">
-              As mesmas tarefas para todos. Cada jogador avança no seu próprio ritmo.
-            </p>
+              ← Jogo
+            </Link>
           </div>
 
           {jogadorAtual && (
@@ -1242,15 +1278,12 @@ export default function TarefasPage() {
                     (aberto) => !aberto
                   )
                 }
-                className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-[#071329] px-3 py-2.5 transition hover:border-white/[0.14] hover:bg-[#091832]"
+                className="flex items-center gap-3 rounded-2xl bg-[#F8FBFE] px-3 py-2.5 transition hover:bg-slate-100"
               >
-                <span
-                  className="h-3 w-3 rounded-full"
-                  style={{
-                    backgroundColor:
-                      jogadorAtual.cor,
-                    boxShadow: `0 0 10px ${jogadorAtual.cor}`,
-                  }}
+                <PeaoMini
+                  cor={
+                    jogadorAtual.cor
+                  }
                 />
 
                 <div className="hidden text-left sm:block">
@@ -1258,7 +1291,7 @@ export default function TarefasPage() {
                     {jogadorAtual.nome}
                   </p>
 
-                  <p className="text-[9px] font-bold text-slate-500">
+                  <p className="text-[9px] font-bold text-slate-400">
                     {ehAdministrador
                       ? "Administrador"
                       : "Jogador"}
@@ -1277,8 +1310,8 @@ export default function TarefasPage() {
               </button>
 
               {menuPerfilAberto && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#08152b] p-2 shadow-[0_20px_60px_rgba(0,0,0,.55)]">
-                  <div className="border-b border-white/[0.06] px-3 py-3 sm:hidden">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-2xl bg-white p-2 shadow-[0_20px_60px_rgba(15,23,42,.15)]">
+                  <div className="border-b border-slate-100 px-3 py-3 sm:hidden">
                     <div className="flex items-center gap-2">
                       <span
                         className="h-3 w-3 rounded-full"
@@ -1294,24 +1327,46 @@ export default function TarefasPage() {
                     </div>
                   </div>
 
+                  <Link
+                    href="/personalizar"
+                    onClick={() =>
+                      setMenuPerfilAberto(
+                        false
+                      )
+                    }
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-600 transition hover:bg-[#F5F8FC]"
+                  >
+                    <span>
+                      Trocar cor
+                    </span>
+
+                    <span
+                      className="h-3 w-3 rounded-full"
+                      style={{
+                        backgroundColor:
+                          jogadorAtual.cor,
+                      }}
+                    />
+                  </Link>
+
                   <button
                     onClick={
                       trocarPartida
                     }
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-600 transition hover:bg-[#F5F8FC]"
                   >
                     <span>
                       Trocar partida
                     </span>
 
-                    <span className="text-slate-500">
+                    <span className="text-slate-400">
                       →
                     </span>
                   </button>
 
                   <button
                     onClick={sair}
-                    className="mt-1 w-full rounded-xl px-3 py-3 text-left text-sm font-bold text-red-300 transition hover:bg-red-400/[0.08]"
+                    className="mt-1 w-full rounded-xl px-3 py-3 text-left text-sm font-bold text-red-500 transition hover:bg-red-50"
                   >
                     Sair da conta
                   </button>
@@ -1321,55 +1376,91 @@ export default function TarefasPage() {
           )}
         </header>
 
-        {jogadorAtual && (
-          <section className="mb-6 rounded-2xl border border-white/[0.07] bg-[#071329] p-4">
-            <p className="text-[10px] font-black tracking-[0.2em] text-slate-500">
-              JOGANDO COMO
-            </p>
+        <section className="mb-7">
+          <p className="text-[10px] font-black tracking-[0.24em] text-[#22C7D9]">
+            TAREFAS
+          </p>
 
-            <div className="mt-2 flex items-center gap-2">
-              <span
-                className="h-3 w-3 rounded-full"
-                style={{
-                  backgroundColor:
-                    jogadorAtual.cor,
-                  boxShadow: `0 0 10px ${jogadorAtual.cor}`,
-                }}
-              />
+          <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+            O que falta fazer?
+          </h1>
 
-              <p className="font-black">
-                {jogadorAtual.nome}
-              </p>
-
-              {ehAdministrador && (
-                <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-[9px] font-black tracking-wider text-cyan-300">
-                  ADMIN
-                </span>
-              )}
-            </div>
-          </section>
-        )}
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
+            As tarefas são iguais para todos, mas cada jogador avança no seu próprio ritmo.
+          </p>
+        </section>
 
         {mensagemErro && (
-          <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/[0.06] p-4 text-sm font-bold text-red-300">
-            {
-              mensagemErro
-            }
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-600">
+            {mensagemErro}
           </div>
+        )}
+
+        {jogadorAtual && (
+          <section className="mb-5 flex flex-col gap-3 rounded-[24px] bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,.05)] sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-[#F8FBFE] p-2">
+                <PeaoMini
+                  cor={
+                    jogadorAtual.cor
+                  }
+                />
+              </div>
+
+              <div>
+                <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                  JOGANDO COMO
+                </p>
+
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="font-black">
+                    {jogadorAtual.nome}
+                  </p>
+
+                  {ehAdministrador && (
+                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black tracking-wider text-[#1594A3]">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {ehAdministrador && (
+              <button
+                onClick={() => {
+                  setMostrarFormulario(
+                    true
+                  );
+
+                  setMensagemErro(
+                    ""
+                  );
+                }}
+                className="rounded-2xl bg-[#22C7D9] px-5 py-3 text-sm font-black text-white shadow-[0_8px_20px_rgba(34,199,217,.16)] transition hover:-translate-y-0.5"
+              >
+                + Nova tarefa
+              </button>
+            )}
+          </section>
         )}
 
         {ehAdministrador &&
           mostrarFormulario && (
-            <section className="mb-6 rounded-2xl border border-cyan-300/15 bg-[#071329] p-5">
-              <div className="mb-5 flex items-center justify-between">
+            <section className="mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_32px_rgba(15,23,42,.06)] sm:p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black tracking-[0.2em] text-cyan-400">
-                    NOVA TAREFA DA PARTIDA
+                  <p className="text-[10px] font-black tracking-[0.2em] text-[#22C7D9]">
+                    NOVA TAREFA
                   </p>
 
-                  <h2 className="mt-1 text-xl font-black">
-                    Todos os jogadores receberão esta tarefa
+                  <h2 className="mt-2 text-xl font-black">
+                    Criar para todos
                   </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Todos os jogadores desta partida receberão a mesma tarefa.
+                  </p>
                 </div>
 
                 <button
@@ -1382,40 +1473,52 @@ export default function TarefasPage() {
 
                     setCategoria("");
                   }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.05] text-slate-400"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5F8FC] text-slate-400 transition hover:bg-slate-100"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="grid gap-4">
-                <input
-                  value={titulo}
-                  onChange={(
-                    event
-                  ) =>
-                    setTitulo(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Ex.: Caminhar por 30 minutos"
-                  className="w-full rounded-xl border border-white/[0.08] bg-[#020b1c] px-4 py-3 text-sm text-white outline-none"
-                />
+              <div className="mt-5 grid gap-4">
+                <div>
+                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    TAREFA
+                  </label>
 
-                <input
-                  value={
-                    categoria
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setCategoria(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Ex.: Saúde"
-                  className="w-full rounded-xl border border-white/[0.08] bg-[#020b1c] px-4 py-3 text-sm text-white outline-none"
-                />
+                  <input
+                    value={titulo}
+                    onChange={(
+                      event
+                    ) =>
+                      setTitulo(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Ex.: Caminhar por 30 minutos"
+                    className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    CATEGORIA
+                  </label>
+
+                  <input
+                    value={
+                      categoria
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setCategoria(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Ex.: Saúde"
+                    className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
+                  />
+                </div>
 
                 <button
                   onClick={
@@ -1425,70 +1528,69 @@ export default function TarefasPage() {
                     salvando ||
                     !titulo.trim()
                   }
-                  className="rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-600 px-5 py-3 text-sm font-black disabled:opacity-50"
+                  className="rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.17)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {salvando
-                    ? "SALVANDO..."
-                    : "CRIAR PARA TODOS"}
+                    ? "Salvando..."
+                    : "Criar tarefa"}
                 </button>
               </div>
             </section>
           )}
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/[0.07] bg-[#071329] p-4">
-            <p className="text-xs text-slate-500">
+        <section className="mb-6 grid grid-cols-3 gap-3">
+          <div className="rounded-[22px] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,.045)]">
+            <p className="text-[9px] font-black tracking-[0.12em] text-slate-400">
               PENDENTES
             </p>
 
-            <p className="mt-1 text-2xl font-black">
+            <p className="mt-2 text-2xl font-black text-[#1F2937]">
               {disponiveis}
             </p>
+
+            <div className="mt-3 h-1.5 rounded-full bg-[#EAF8FB]">
+              <div className="h-full w-full rounded-full bg-[#22C7D9]" />
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-orange-300/15 bg-orange-300/[0.04] p-4">
-            <p className="text-xs text-orange-300/70">
+          <div className="rounded-[22px] bg-[#FFF8E7] p-4">
+            <p className="text-[9px] font-black tracking-[0.12em] text-[#C98A00]">
               AGUARDANDO
             </p>
 
-            <p className="mt-1 text-2xl font-black text-orange-300">
+            <p className="mt-2 text-2xl font-black text-[#D89900]">
               {aguardando}
             </p>
+
+            <div className="mt-3 h-1.5 rounded-full bg-[#FFE7A8]">
+              <div className="h-full w-full rounded-full bg-[#F4B942]" />
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.04] p-4">
-            <p className="text-xs text-emerald-300/70">
+          <div className="rounded-[22px] bg-[#EEFBEF] p-4">
+            <p className="text-[9px] font-black tracking-[0.12em] text-[#3A8F4A]">
               CONCLUÍDAS
             </p>
 
-            <p className="mt-1 text-2xl font-black text-emerald-300">
+            <p className="mt-2 text-2xl font-black text-[#22A447]">
               {concluidas}
             </p>
+
+            <div className="mt-3 h-1.5 rounded-full bg-[#CDEED4]">
+              <div className="h-full w-full rounded-full bg-[#22C55E]" />
+            </div>
           </div>
         </section>
 
-        {ehAdministrador && (
-          <div className="mb-5 flex justify-end">
-            <button
-              onClick={() => {
-                setMostrarFormulario(
-                  true
-                );
-
-                setMensagemErro(
-                  ""
-                );
-              }}
-              className="rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-600 px-5 py-3 text-sm font-black shadow-[0_12px_35px_rgba(59,130,246,.25)] transition hover:scale-[1.02]"
-            >
-              + NOVA TAREFA
-            </button>
-          </div>
-        )}
-
         {carregando && (
-          <div className="rounded-2xl bg-[#071329] p-6 text-center text-slate-400">
-            Identificando jogador...
+          <div className="flex min-h-[220px] items-center justify-center rounded-[28px] bg-white shadow-[0_10px_30px_rgba(15,23,42,.05)]">
+            <div className="text-center">
+              <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-100 border-t-[#22C7D9]" />
+
+              <p className="mt-3 text-sm font-bold text-slate-400">
+                Carregando tarefas...
+              </p>
+            </div>
           </div>
         )}
 
@@ -1497,15 +1599,19 @@ export default function TarefasPage() {
             <section className="space-y-3">
               {tarefas.length ===
                 0 && (
-                <div className="rounded-2xl border border-white/[0.07] bg-[#071329] p-8 text-center">
-                  <p className="text-lg font-black">
-                    Nenhuma tarefa na partida
+                <div className="rounded-[28px] bg-white p-8 text-center shadow-[0_10px_30px_rgba(15,23,42,.05)]">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF8FB] text-2xl font-black text-[#22C7D9]">
+                    ✓
+                  </div>
+
+                  <p className="mt-4 text-lg font-black">
+                    Nenhuma tarefa por aqui
                   </p>
 
-                  <p className="mt-2 text-sm text-slate-400">
+                  <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
                     {ehAdministrador
-                      ? "Crie a primeira tarefa para começar a corrida."
-                      : "O administrador ainda não definiu as tarefas."}
+                      ? "Crie a primeira tarefa para colocar a corrida em movimento."
+                      : "O administrador ainda não definiu as tarefas desta partida."}
                   </p>
                 </div>
               )}
@@ -1519,31 +1625,43 @@ export default function TarefasPage() {
                     tarefaEmAtualizacao ===
                     tarefa.id;
 
+                  const concluida =
+                    status ===
+                    "Concluída";
+
+                  const esperando =
+                    status ===
+                    "Aguardando aprovação";
+
                   return (
                     <article
                       key={
                         tarefa.id
                       }
-                      className="flex flex-col gap-4 rounded-2xl border border-white/[0.07] bg-[#071329] p-5 sm:flex-row sm:items-center sm:justify-between"
+                      className={`rounded-[24px] p-5 shadow-[0_8px_26px_rgba(15,23,42,.045)] transition sm:flex sm:items-center sm:justify-between sm:gap-5 ${
+                        concluida
+                          ? "bg-[#F2FBF4]"
+                          : esperando
+                          ? "bg-[#FFF9EC]"
+                          : "bg-white"
+                      }`}
                     >
-                      <div>
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                      <div className="min-w-0">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-[#F5F8FC] px-2.5 py-1 text-[9px] font-black text-slate-400">
                             {
                               tarefa.categoria
                             }
                           </span>
 
-                          {status ===
-                            "Aguardando aprovação" && (
-                            <span className="rounded-full bg-orange-400/10 px-2.5 py-1 text-[10px] font-bold text-orange-300">
+                          {esperando && (
+                            <span className="rounded-full bg-[#FFE9AD] px-2.5 py-1 text-[9px] font-black text-[#B87C00]">
                               Aguardando aprovação
                             </span>
                           )}
 
-                          {status ===
-                            "Concluída" && (
-                            <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold text-emerald-300">
+                          {concluida && (
+                            <span className="rounded-full bg-[#DDF5E3] px-2.5 py-1 text-[9px] font-black text-[#25853D]">
                               Aprovada
                             </span>
                           )}
@@ -1555,43 +1673,43 @@ export default function TarefasPage() {
                           }
                         </h2>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          +1 casa para cada jogador que concluir
+                        <p className="mt-1 text-xs text-slate-400">
+                          +1 casa quando outro jogador aprovar sua foto
                         </p>
                       </div>
 
-                      {status ===
-                        "Pendente" && (
-                        <button
-                          onClick={() =>
-                            abrirCamera(
-                              tarefa
-                            )
-                          }
-                          disabled={
-                            atualizando
-                          }
-                          className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-sm font-black disabled:opacity-50"
-                        >
-                          {atualizando
-                            ? "ENVIANDO FOTO..."
-                            : "CONCLUIR"}
-                        </button>
-                      )}
+                      <div className="mt-4 shrink-0 sm:mt-0">
+                        {status ===
+                          "Pendente" && (
+                          <button
+                            onClick={() =>
+                              abrirCamera(
+                                tarefa
+                              )
+                            }
+                            disabled={
+                              atualizando
+                            }
+                            className="w-full rounded-2xl bg-[#22C7D9] px-5 py-3.5 text-sm font-black text-white shadow-[0_8px_20px_rgba(34,199,217,.16)] transition hover:-translate-y-0.5 disabled:opacity-50 sm:w-auto"
+                          >
+                            {atualizando
+                              ? "Enviando..."
+                              : "Concluir tarefa"}
+                          </button>
+                        )}
 
-                      {status ===
-                        "Aguardando aprovação" && (
-                        <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-5 py-3 text-sm font-bold text-orange-300">
-                          Aguardando aprovação
-                        </div>
-                      )}
+                        {esperando && (
+                          <div className="rounded-2xl bg-[#FFECC0] px-5 py-3.5 text-center text-sm font-black text-[#B87C00]">
+                            Em análise
+                          </div>
+                        )}
 
-                      {status ===
-                        "Concluída" && (
-                        <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.05] px-5 py-3 text-sm font-black text-emerald-300">
-                          ✓ +1 CASA
-                        </div>
-                      )}
+                        {concluida && (
+                          <div className="rounded-2xl bg-[#DDF5E3] px-5 py-3.5 text-center text-sm font-black text-[#25853D]">
+                            ✓ +1 casa
+                          </div>
+                        )}
+                      </div>
                     </article>
                   );
                 }
@@ -1599,19 +1717,72 @@ export default function TarefasPage() {
             </section>
           )}
 
-        <section className="mt-6 rounded-2xl border border-violet-400/10 bg-gradient-to-br from-violet-500/[0.08] to-cyan-400/[0.04] p-5">
-          <p className="text-xs font-black text-violet-300">
+        <section className="mt-6 rounded-[26px] bg-[#F1ECFF] p-5 sm:p-6">
+          <p className="text-[10px] font-black tracking-[0.18em] text-[#8B5CF6]">
             COMO FUNCIONA
           </p>
 
-          <p className="mt-2 text-sm leading-relaxed text-slate-300">
-            O administrador define as tarefas da partida.
-            Todos recebem as mesmas missões. Cada jogador
-            registra uma foto naquele momento e, quando ela
-            for aprovada por outro jogador, avança uma casa.
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+            O administrador cria as tarefas da partida. Todos recebem as mesmas missões. Para concluir, você registra uma foto naquele momento. Quando outro jogador aprovar sua comprovação, você avança uma casa.
           </p>
         </section>
       </div>
+
+      <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] bg-white p-2 shadow-[0_14px_38px_rgba(15,23,42,.14)] lg:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          <Link
+            href="/jogo"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              🎮
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Jogo
+            </span>
+          </Link>
+
+          <Link
+            href="/tarefas"
+            className="flex flex-col items-center justify-center rounded-2xl bg-[#EAF8FB] px-2 py-2.5 text-[#1594A3]"
+          >
+            <span className="text-lg">
+              ▣
+            </span>
+
+            <span className="mt-1 text-[10px] font-black">
+              Tarefas
+            </span>
+          </Link>
+
+          <Link
+            href="/aprovacoes"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              👍
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Aprovações
+            </span>
+          </Link>
+
+          <Link
+            href="/"
+            className="flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 text-slate-400"
+          >
+            <span className="text-lg">
+              ⌂
+            </span>
+
+            <span className="mt-1 text-[10px] font-bold">
+              Início
+            </span>
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }
