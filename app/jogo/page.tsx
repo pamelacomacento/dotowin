@@ -10,6 +10,7 @@ type Jogador = {
   nome: string;
   cor: string;
   posicao: number;
+  avatar: string | null;
 };
 
 type Partida = {
@@ -222,9 +223,11 @@ function criarSlotsLinha(
 
 function Peao({
   cor,
+  avatar = null,
   pequeno = false,
 }: {
   cor: string;
+  avatar?: string | null;
   pequeno?: boolean;
 }) {
   return (
@@ -244,7 +247,7 @@ function Peao({
       />
 
       <div
-        className={`absolute left-1/2 top-0 -translate-x-1/2 rounded-full border-2 border-white ${
+        className={`absolute left-1/2 top-0 z-20 -translate-x-1/2 overflow-hidden rounded-full border-2 border-white ${
           pequeno
             ? "h-4 w-4"
             : "h-5 w-5"
@@ -254,7 +257,15 @@ function Peao({
           boxShadow:
             "0 3px 8px rgba(15,23,42,.12)",
         }}
-      />
+      >
+        {avatar && (
+          <img
+            src={avatar}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
+      </div>
 
       <div
         className={`absolute left-1/2 -translate-x-1/2 rounded-t-full border-x-2 border-white ${
@@ -322,6 +333,7 @@ function JogadoresNoPonto({
           >
             <Peao
               cor={jogador.cor}
+              avatar={jogador.avatar}
               pequeno
             />
           </div>
@@ -1279,7 +1291,7 @@ export default function Home() {
       supabase
         .from("players")
         .select(
-          "id, name, color, position, game_id"
+          "id, name, color, position, game_id, avatar"
         )
         .eq(
           "game_id",
@@ -1403,6 +1415,18 @@ export default function Home() {
             item.position ?? 0,
             totalCasas
           ),
+        avatar:
+          item.avatar &&
+          (
+            item.avatar.startsWith(
+              "http://"
+            ) ||
+            item.avatar.startsWith(
+              "https://"
+            )
+          )
+            ? item.avatar
+            : null,
       }));
 
     const tarefasDoBanco =
@@ -1765,6 +1789,10 @@ export default function Home() {
                         jogadorAtual?.cor ||
                         "#38BDF8"
                       }
+                      avatar={
+                        jogadorAtual?.avatar ||
+                        null
+                      }
                     />
 
                     <div className="-ml-2 flex h-10 w-8 items-center justify-center rounded-full border-2 border-dashed border-[#C8B9F4] text-lg font-black text-[#8B5CF6]">
@@ -1961,6 +1989,9 @@ export default function Home() {
                         cor={
                           jogador.cor
                         }
+                        avatar={
+                          jogador.avatar
+                        }
                         pequeno
                       />
                     </div>
@@ -2024,6 +2055,9 @@ export default function Home() {
                           <Peao
                             cor={
                               jogador.cor
+                            }
+                            avatar={
+                              jogador.avatar
                             }
                           />
 
@@ -2243,6 +2277,9 @@ export default function Home() {
                             <Peao
                               cor={
                                 jogador.cor
+                              }
+                              avatar={
+                                jogador.avatar
                               }
                               pequeno
                             />

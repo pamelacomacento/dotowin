@@ -29,6 +29,7 @@ type Jogador = {
   id: number;
   nome: string;
   cor: string;
+  avatar: string | null;
   gameId: number;
 };
 
@@ -107,19 +108,29 @@ function Logo() {
 
 function PeaoMini({
   cor,
+  avatar,
 }: {
   cor: string;
+  avatar?: string | null;
 }) {
   return (
     <div className="relative h-11 w-9 shrink-0">
       <div
-        className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
+        className="absolute left-1/2 top-0 z-10 h-5 w-5 -translate-x-1/2 overflow-hidden rounded-full border-2 border-white"
         style={{
           backgroundColor: cor,
           boxShadow:
             "0 3px 8px rgba(15,23,42,.12)",
         }}
-      />
+      >
+        {avatar && (
+          <img
+            src={avatar}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
+      </div>
 
       <div
         className="absolute bottom-[6px] left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full border-x-2 border-white"
@@ -742,7 +753,7 @@ export default function TarefasPage() {
       supabase
         .from("players")
         .select(
-          "id, name, color, profile_id, game_id"
+          "id, name, color, avatar, profile_id, game_id"
         )
         .eq(
           "profile_id",
@@ -826,6 +837,9 @@ export default function TarefasPage() {
         cor:
           jogadorData.color ||
           "#38BDF8",
+        avatar:
+          jogadorData.avatar ||
+          null,
         gameId:
           jogadorData.game_id,
       };
@@ -2069,6 +2083,9 @@ export default function TarefasPage() {
                   cor={
                     jogadorAtual.cor
                   }
+                  avatar={
+                    jogadorAtual.avatar
+                  }
                 />
 
                 <div className="hidden text-left sm:block">
@@ -2199,6 +2216,9 @@ export default function TarefasPage() {
                 <PeaoMini
                   cor={
                     jogadorAtual.cor
+                  }
+                  avatar={
+                    jogadorAtual.avatar
                   }
                 />
               </div>

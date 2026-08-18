@@ -9,6 +9,7 @@ type JogadorAtual = {
   id: number;
   nome: string;
   cor: string;
+  avatar: string | null;
   gameId: number;
 };
 
@@ -23,28 +24,49 @@ type Submissao = {
   tarefaCategoria: string;
   jogadorNome: string;
   jogadorCor: string;
+  jogadorAvatar: string | null;
 };
 
 function Logo() {
   return (
-    <img
-      src="/dotowin-logo.png"
-      alt="DoToWin"
-      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
-    />
+    <Link
+      href="/"
+      aria-label="Voltar para a página inicial"
+      className="block shrink-0 rounded-xl transition hover:opacity-80"
+    >
+      <img
+        src="/dotowin-logo.png"
+        alt="DoToWin"
+        className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+      />
+    </Link>
   );
 }
 
-function PeaoMini({ cor }: { cor: string }) {
+function PeaoMini({
+  cor,
+  avatar,
+}: {
+  cor: string;
+  avatar?: string | null;
+}) {
   return (
     <div className="relative h-11 w-9 shrink-0">
       <div
-        className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white"
+        className="absolute left-1/2 top-0 z-10 h-5 w-5 -translate-x-1/2 overflow-hidden rounded-full border-2 border-white"
         style={{
           backgroundColor: cor,
           boxShadow: "0 3px 8px rgba(15,23,42,.12)",
         }}
-      />
+      >
+        {avatar && (
+          <img
+            src={avatar}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
+      </div>
 
       <div
         className="absolute bottom-[6px] left-1/2 h-4 w-6 -translate-x-1/2 rounded-t-full border-x-2 border-white"
@@ -232,7 +254,7 @@ export default function AprovacoesPage() {
     } = await supabase
       .from("players")
       .select(
-        "id, name, color, profile_id, game_id"
+        "id, name, color, avatar, profile_id, game_id"
       )
       .eq(
         "profile_id",
@@ -278,6 +300,9 @@ export default function AprovacoesPage() {
         cor:
           jogadorData.color ||
           "#38BDF8",
+        avatar:
+          jogadorData.avatar ||
+          null,
         gameId:
           jogadorData.game_id,
       };
@@ -292,7 +317,7 @@ export default function AprovacoesPage() {
     } = await supabase
       .from("players")
       .select(
-        "id, name, color"
+        "id, name, color, avatar"
       )
       .eq(
         "game_id",
@@ -513,6 +538,10 @@ export default function AprovacoesPage() {
               jogadorCor:
                 jogador?.color ||
                 "#38BDF8",
+
+              jogadorAvatar:
+                jogador?.avatar ||
+                null,
             };
           }
         );
@@ -680,6 +709,9 @@ export default function AprovacoesPage() {
       if (
         erroTexto.includes(
           "cannot reject your own"
+        ) ||
+        erroTexto.includes(
+          "players cannot reject their own submission"
         )
       ) {
         mensagem =
@@ -694,6 +726,9 @@ export default function AprovacoesPage() {
       } else if (
         erroTexto.includes(
           "not a player in this game"
+        ) ||
+        erroTexto.includes(
+          "reviewer is not in this game"
         )
       ) {
         mensagem =
@@ -739,7 +774,7 @@ export default function AprovacoesPage() {
   return (
     <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-10">
       <div className="mx-auto max-w-[1050px] px-4 py-4 sm:px-6 lg:py-6">
-        <header className="mb-7 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
+        <header className="mb-4 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:mb-7 sm:px-5">
           <div className="flex items-center gap-5">
             <Logo />
 
@@ -747,9 +782,9 @@ export default function AprovacoesPage() {
 
             <Link
               href="/jogo"
-              className="hidden rounded-xl px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-[#F5F8FC] hover:text-slate-600 sm:block"
+              className="hidden items-center justify-center rounded-2xl bg-[#EAF8FB] px-5 py-3.5 text-sm font-black text-[#1594A3] transition hover:-translate-y-0.5 hover:bg-[#DDF5F8] sm:inline-flex"
             >
-              ← Jogo
+              ← Voltar para o jogo
             </Link>
           </div>
 
@@ -759,9 +794,12 @@ export default function AprovacoesPage() {
                 cor={
                   jogadorAtual.cor
                 }
+                avatar={
+                  jogadorAtual.avatar
+                }
               />
 
-              <div className="hidden sm:block">
+              <div className="hidden md:block">
                 <p className="max-w-[150px] truncate text-xs font-black">
                   {jogadorAtual.nome}
                 </p>
@@ -780,6 +818,13 @@ export default function AprovacoesPage() {
             </div>
           )}
         </header>
+
+        <Link
+          href="/jogo"
+          className="mb-6 flex w-full items-center justify-center rounded-2xl bg-[#EAF8FB] px-5 py-4 text-sm font-black text-[#1594A3] shadow-[0_6px_18px_rgba(34,199,217,.08)] transition active:scale-[0.99] sm:hidden"
+        >
+          ← Voltar para o jogo
+        </Link>
 
         <section className="mb-7">
           <p className="text-[10px] font-black tracking-[0.24em] text-[#8B5CF6]">
@@ -808,6 +853,9 @@ export default function AprovacoesPage() {
                 <PeaoMini
                   cor={
                     jogadorAtual.cor
+                  }
+                  avatar={
+                    jogadorAtual.avatar
                   }
                 />
               </div>
@@ -866,9 +914,9 @@ export default function AprovacoesPage() {
 
               <Link
                 href="/jogo"
-                className="mt-6 inline-flex rounded-2xl bg-[#F5F8FC] px-5 py-3 text-sm font-black text-slate-500 transition hover:bg-slate-100"
+                className="mt-6 inline-flex items-center justify-center rounded-2xl bg-[#22C7D9] px-7 py-4 text-sm font-black text-white shadow-[0_10px_22px_rgba(34,199,217,.16)] transition hover:-translate-y-0.5"
               >
-                Voltar para o jogo
+                ← Voltar para o jogo
               </Link>
             </div>
           )}
@@ -912,12 +960,22 @@ export default function AprovacoesPage() {
                           <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
                             <div className="flex items-center gap-2">
                               <span
-                                className="h-2.5 w-2.5 rounded-full"
+                                className="h-6 w-6 overflow-hidden rounded-full border-2 border-white"
                                 style={{
                                   backgroundColor:
                                     submissao.jogadorCor,
                                 }}
-                              />
+                              >
+                                {submissao.jogadorAvatar && (
+                                  <img
+                                    src={
+                                      submissao.jogadorAvatar
+                                    }
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                  />
+                                )}
+                              </span>
 
                               <span className="text-[10px] font-black text-slate-600">
                                 {submissao.jogadorNome}
@@ -943,6 +1001,9 @@ export default function AprovacoesPage() {
                                 <PeaoMini
                                   cor={
                                     submissao.jogadorCor
+                                  }
+                                  avatar={
+                                    submissao.jogadorAvatar
                                   }
                                 />
                               </div>
