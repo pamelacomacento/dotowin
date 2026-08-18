@@ -16,7 +16,9 @@ type StatusSubmissao =
 
 type ModoRepeticao =
   | "once"
-  | "daily";
+  | "daily"
+  | "weekdays"
+  | "custom";
 
 type EstadoHorario =
   | "disponivel"
@@ -35,6 +37,7 @@ type Tarefa = {
   titulo: string;
   categoria: string;
   repeatMode: ModoRepeticao;
+  repeatDays: number[];
   availableFrom: string | null;
   availableUntil: string | null;
 };
@@ -48,13 +51,57 @@ type Submissao = {
   occurrenceDate: string | null;
 };
 
+const diasSemana = [
+  {
+    numero: 0,
+    curto: "Dom",
+    nome: "Domingo",
+  },
+  {
+    numero: 1,
+    curto: "Seg",
+    nome: "Segunda",
+  },
+  {
+    numero: 2,
+    curto: "Ter",
+    nome: "Terça",
+  },
+  {
+    numero: 3,
+    curto: "Qua",
+    nome: "Quarta",
+  },
+  {
+    numero: 4,
+    curto: "Qui",
+    nome: "Quinta",
+  },
+  {
+    numero: 5,
+    curto: "Sex",
+    nome: "Sexta",
+  },
+  {
+    numero: 6,
+    curto: "Sáb",
+    nome: "Sábado",
+  },
+];
+
 function Logo() {
   return (
-    <img
-      src="/dotowin-logo.png"
-      alt="DoToWin"
-      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
-    />
+    <Link
+      href="/"
+      aria-label="Voltar para a página inicial"
+      className="block shrink-0 rounded-xl transition hover:opacity-80"
+    >
+      <img
+        src="/dotowin-logo.png"
+        alt="DoToWin"
+        className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+      />
+    </Link>
   );
 }
 
@@ -172,14 +219,75 @@ function obterAgoraBrasil(
       ])
     );
 
+  const data =
+    `${mapa.year}-${mapa.month}-${mapa.day}`;
+
+  const ano =
+    Number(mapa.year);
+
+  const mes =
+    Number(mapa.month);
+
+  const dia =
+    Number(mapa.day);
+
+  const diaSemana =
+    new Date(
+      Date.UTC(
+        ano,
+        mes - 1,
+        dia
+      )
+    ).getUTCDay();
+
   return {
-    data:
-      `${mapa.year}-${mapa.month}-${mapa.day}`,
+    data,
     minutos:
       Number(mapa.hour) *
         60 +
       Number(mapa.minute),
+    diaSemana,
   };
+}
+
+function tarefaProgramadaHoje(
+  tarefa: Tarefa,
+  diaSemana: number
+) {
+  if (
+    tarefa.repeatMode ===
+    "once"
+  ) {
+    return true;
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "daily"
+  ) {
+    return true;
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "weekdays"
+  ) {
+    return (
+      diaSemana >= 1 &&
+      diaSemana <= 5
+    );
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "custom"
+  ) {
+    return tarefa.repeatDays.includes(
+      diaSemana
+    );
+  }
+
+  return false;
 }
 
 function obterEstadoHorario(
@@ -187,8 +295,8 @@ function obterEstadoHorario(
   agoraMinutos: number
 ): EstadoHorario {
   if (
-    tarefa.repeatMode !==
-    "daily"
+    tarefa.repeatMode ===
+    "once"
   ) {
     return "disponivel";
   }
@@ -255,6 +363,60 @@ function textoHorario(
   return "Dia todo";
 }
 
+function textoRepeticao(
+  tarefa: Tarefa
+) {
+  if (
+    tarefa.repeatMode ===
+    "once"
+  ) {
+    return "Uma vez";
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "daily"
+  ) {
+    return "Todos os dias";
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "weekdays"
+  ) {
+    return "Dias úteis";
+  }
+
+  if (
+    tarefa.repeatMode ===
+    "custom"
+  ) {
+    const selecionados =
+      diasSemana
+        .filter((dia) =>
+          tarefa.repeatDays.includes(
+            dia.numero
+          )
+        )
+        .map(
+          (dia) => dia.curto
+        );
+
+    if (
+      selecionados.length ===
+      0
+    ) {
+      return "Personalizado";
+    }
+
+    return selecionados.join(
+      ", "
+    );
+  }
+
+  return "Uma vez";
+}
+
 export default function TarefasPage() {
   const router = useRouter();
 
@@ -300,6 +462,12 @@ export default function TarefasPage() {
     useState<ModoRepeticao>(
       "once"
     );
+
+  const [
+    diasPersonalizados,
+    setDiasPersonalizados,
+  ] =
+    useState<number[]>([]);
 
   const [
     horarioInicio,
@@ -680,7 +848,7 @@ export default function TarefasPage() {
       supabase
         .from("tasks")
         .select(
-          "id, title, category, repeat_mode, available_from, available_until, created_at, game_id"
+          "id, title, category, repeat_mode, repeat_days, available_from, available_until, created_at, game_id"
         )
         .eq(
           "game_id",
@@ -737,25 +905,44 @@ export default function TarefasPage() {
 
     const tarefasFormatadas: Tarefa[] =
       (tarefasData || []).map(
-        (item) => ({
-          id: item.id,
-          titulo:
-            item.title,
-          categoria:
-            item.category ||
-            "Geral",
-          repeatMode:
+        (item) => {
+          let repeatMode: ModoRepeticao =
+            "once";
+
+          if (
             item.repeat_mode ===
-            "daily"
-              ? "daily"
-              : "once",
-          availableFrom:
-            item.available_from ||
-            null,
-          availableUntil:
-            item.available_until ||
-            null,
-        })
+              "daily" ||
+            item.repeat_mode ===
+              "weekdays" ||
+            item.repeat_mode ===
+              "custom"
+          ) {
+            repeatMode =
+              item.repeat_mode;
+          }
+
+          return {
+            id: item.id,
+            titulo:
+              item.title,
+            categoria:
+              item.category ||
+              "Geral",
+            repeatMode,
+            repeatDays:
+              Array.isArray(
+                item.repeat_days
+              )
+                ? item.repeat_days
+                : [],
+            availableFrom:
+              item.available_from ||
+              null,
+            availableUntil:
+              item.available_until ||
+              null,
+          };
+        }
       );
 
     const submissoesFormatadas: Submissao[] =
@@ -797,11 +984,46 @@ export default function TarefasPage() {
   function limparFormulario() {
     setTitulo("");
     setCategoria("");
+
     setModoRepeticao(
       "once"
     );
+
+    setDiasPersonalizados(
+      []
+    );
+
     setHorarioInicio("");
     setHorarioFim("");
+  }
+
+  function trocarDiaPersonalizado(
+    dia: number
+  ) {
+    setDiasPersonalizados(
+      (diasAtuais) => {
+        if (
+          diasAtuais.includes(
+            dia
+          )
+        ) {
+          return diasAtuais.filter(
+            (item) =>
+              item !== dia
+          );
+        }
+
+        return [
+          ...diasAtuais,
+          dia,
+        ].sort(
+          (a, b) =>
+            a - b
+        );
+      }
+    );
+
+    setMensagemErro("");
   }
 
   function trocarPartida() {
@@ -837,6 +1059,9 @@ export default function TarefasPage() {
 
   async function adicionarTarefa() {
     if (!titulo.trim()) {
+      setMensagemErro(
+        "Digite o nome da tarefa."
+      );
       return;
     }
 
@@ -856,7 +1081,19 @@ export default function TarefasPage() {
 
     if (
       modoRepeticao ===
-        "daily" &&
+        "custom" &&
+      diasPersonalizados.length ===
+        0
+    ) {
+      setMensagemErro(
+        "Escolha pelo menos um dia da semana."
+      );
+      return;
+    }
+
+    if (
+      modoRepeticao !==
+        "once" &&
       horarioInicio &&
       horarioFim
     ) {
@@ -891,30 +1128,42 @@ export default function TarefasPage() {
         .insert({
           title:
             titulo.trim(),
+
           category:
             categoria.trim() ||
             "Geral",
+
           status:
             "Pendente",
+
           game_id:
             jogadorAtual.gameId,
+
           repeat_mode:
             modoRepeticao,
-          available_from:
+
+          repeat_days:
             modoRepeticao ===
-              "daily" &&
+              "custom"
+              ? diasPersonalizados
+              : null,
+
+          available_from:
+            modoRepeticao !==
+              "once" &&
             horarioInicio
               ? horarioInicio
               : null,
+
           available_until:
-            modoRepeticao ===
-              "daily" &&
+            modoRepeticao !==
+              "once" &&
             horarioFim
               ? horarioFim
               : null,
         })
         .select(
-          "id, title, category, repeat_mode, available_from, available_until"
+          "id, title, category, repeat_mode, repeat_days, available_from, available_until"
         )
         .single();
 
@@ -932,22 +1181,46 @@ export default function TarefasPage() {
       return;
     }
 
+    let repeatModeNova: ModoRepeticao =
+      "once";
+
+    if (
+      data.repeat_mode ===
+        "daily" ||
+      data.repeat_mode ===
+        "weekdays" ||
+      data.repeat_mode ===
+        "custom"
+    ) {
+      repeatModeNova =
+        data.repeat_mode;
+    }
+
     const novaTarefa: Tarefa =
       {
         id: data.id,
+
         titulo:
           data.title,
+
         categoria:
           data.category ||
           "Geral",
+
         repeatMode:
-          data.repeat_mode ===
-          "daily"
-            ? "daily"
-            : "once",
+          repeatModeNova,
+
+        repeatDays:
+          Array.isArray(
+            data.repeat_days
+          )
+            ? data.repeat_days
+            : [],
+
         availableFrom:
           data.available_from ||
           null,
+
         availableUntil:
           data.available_until ||
           null,
@@ -991,8 +1264,8 @@ export default function TarefasPage() {
         }
 
         if (
-          tarefa.repeatMode ===
-          "daily"
+          tarefa.repeatMode !==
+          "once"
         ) {
           return (
             submissao.occurrenceDate ===
@@ -1006,9 +1279,7 @@ export default function TarefasPage() {
         );
       }
     );
-  }
-
-  function abrirCamera(
+  }  function abrirCamera(
     tarefa: Tarefa
   ) {
     if (!jogadorAtual) {
@@ -1016,6 +1287,19 @@ export default function TarefasPage() {
         "Não foi possível identificar seu jogador."
       );
 
+      return;
+    }
+
+    const programadaHoje =
+      tarefaProgramadaHoje(
+        tarefa,
+        agoraBrasil.diaSemana
+      );
+
+    if (!programadaHoje) {
+      setMensagemErro(
+        "Essa tarefa não está programada para hoje."
+      );
       return;
     }
 
@@ -1052,7 +1336,7 @@ export default function TarefasPage() {
                 tarefa.availableUntil
               )}`
             : ""
-        }. Ela estará disponível novamente amanhã.`
+        }.`
       );
       return;
     }
@@ -1344,12 +1628,31 @@ export default function TarefasPage() {
     const tarefa =
       tarefaSelecionada;
 
+    const agoraAtual =
+      obterAgoraBrasil(
+        Date.now()
+      );
+
+    const programadaHoje =
+      tarefaProgramadaHoje(
+        tarefa,
+        agoraAtual.diaSemana
+      );
+
+    if (!programadaHoje) {
+      fecharCamera();
+
+      setMensagemErro(
+        "Essa tarefa não está programada para hoje."
+      );
+
+      return;
+    }
+
     const estado =
       obterEstadoHorario(
         tarefa,
-        obterAgoraBrasil(
-          Date.now()
-        ).minutos
+        agoraAtual.minutos
       );
 
     if (
@@ -1362,7 +1665,7 @@ export default function TarefasPage() {
         estado ===
           "ainda_nao"
           ? "Essa tarefa ainda não está disponível."
-          : "O prazo desta tarefa terminou hoje. Ela estará disponível novamente amanhã."
+          : "O prazo desta tarefa terminou hoje."
       );
 
       return;
@@ -1473,14 +1776,21 @@ export default function TarefasPage() {
           "Essa tarefa ainda não está disponível.";
       } else if (
         erroTexto.includes(
-          "task has expired for today"
+          "task is no longer available today"
         )
       ) {
         mensagem =
-          "O prazo dessa tarefa terminou hoje. Ela volta amanhã.";
+          "O prazo dessa tarefa terminou hoje.";
       } else if (
         erroTexto.includes(
-          "player not found in this game"
+          "task is not scheduled for today"
+        )
+      ) {
+        mensagem =
+          "Essa tarefa não está programada para hoje.";
+      } else if (
+        erroTexto.includes(
+          "player is not in this game"
         )
       ) {
         mensagem =
@@ -1524,6 +1834,12 @@ export default function TarefasPage() {
             tarefa
           );
 
+        const programadaHoje =
+          tarefaProgramadaHoje(
+            tarefa,
+            agoraBrasil.diaSemana
+          );
+
         const estadoHorario =
           obterEstadoHorario(
             tarefa,
@@ -1533,6 +1849,7 @@ export default function TarefasPage() {
         return {
           tarefa,
           submissao,
+          programadaHoje,
           estadoHorario,
           status:
             submissao?.status ||
@@ -1544,6 +1861,7 @@ export default function TarefasPage() {
   const disponiveis =
     statusDasTarefas.filter(
       (item) =>
+        item.programadaHoje &&
         item.status ===
           "Pendente" &&
         item.estadoHorario ===
@@ -1553,18 +1871,18 @@ export default function TarefasPage() {
   const aguardando =
     statusDasTarefas.filter(
       (item) =>
+        item.programadaHoje &&
         item.status ===
-        "Aguardando aprovação"
+          "Aguardando aprovação"
     ).length;
 
   const concluidas =
     statusDasTarefas.filter(
       (item) =>
+        item.programadaHoje &&
         item.status ===
-        "Concluída"
-    ).length;
-
-  return (
+          "Concluída"
+    ).length;  return (
     <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-10">
       <canvas
         ref={canvasRef}
@@ -1587,8 +1905,8 @@ export default function TarefasPage() {
                     }
                   </h2>
 
-                  {tarefaSelecionada.repeatMode ===
-                    "daily" && (
+                  {tarefaSelecionada.repeatMode !==
+                    "once" && (
                     <p className="mt-1 text-xs font-bold text-slate-400">
                       Hoje •{" "}
                       {textoHorario(
@@ -1717,7 +2035,7 @@ export default function TarefasPage() {
         )}
 
       <div className="mx-auto max-w-[1180px] px-4 py-4 sm:px-6 lg:py-6">
-        <header className="mb-7 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
+        <header className="mb-4 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:mb-7 sm:px-5">
           <div className="flex items-center gap-5">
             <Logo />
 
@@ -1725,9 +2043,9 @@ export default function TarefasPage() {
 
             <Link
               href="/jogo"
-              className="hidden rounded-xl px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-[#F5F8FC] hover:text-slate-600 sm:block"
+              className="hidden items-center justify-center rounded-2xl bg-[#EAF8FB] px-5 py-3.5 text-sm font-black text-[#1594A3] transition hover:-translate-y-0.5 hover:bg-[#DDF5F8] sm:inline-flex"
             >
-              ← Jogo
+              ← Voltar para o jogo
             </Link>
           </div>
 
@@ -1847,6 +2165,13 @@ export default function TarefasPage() {
           )}
         </header>
 
+        <Link
+          href="/jogo"
+          className="mb-6 flex w-full items-center justify-center rounded-2xl bg-[#EAF8FB] px-5 py-4 text-sm font-black text-[#1594A3] shadow-[0_6px_18px_rgba(34,199,217,.08)] transition active:scale-[0.99] sm:hidden"
+        >
+          ← Voltar para o jogo
+        </Link>
+
         <section className="mb-7">
           <p className="text-[10px] font-black tracking-[0.24em] text-[#22C7D9]">
             TAREFAS
@@ -1857,7 +2182,7 @@ export default function TarefasPage() {
           </h1>
 
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
-            Cada tarefa vale +1 casa. As missões diárias renovam todos os dias e precisam ser feitas dentro do horário definido.
+            Cada tarefa vale +1 casa. Tarefas recorrentes aparecem novamente nos dias programados.
           </p>
         </section>
 
@@ -1932,7 +2257,7 @@ export default function TarefasPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Defina se a tarefa acontece apenas uma vez ou se volta todos os dias.
+                    Escolha quando esta tarefa deverá aparecer para os jogadores.
                   </p>
                 </div>
 
@@ -1954,11 +2279,17 @@ export default function TarefasPage() {
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-4">
+              <div className="mt-5 grid gap-5">
                 <div>
-                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
-                    TAREFA
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                      TAREFA
+                    </label>
+
+                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
+                      obrigatório
+                    </span>
+                  </div>
 
                   <input
                     value={titulo}
@@ -1969,15 +2300,21 @@ export default function TarefasPage() {
                         event.target.value
                       )
                     }
-                    placeholder="Ex.: Acordar cedo"
+                    placeholder="Ex.: Fazer caminhada"
                     className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
-                    CATEGORIA
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                      CATEGORIA
+                    </label>
+
+                    <span className="rounded-full bg-[#F5F8FC] px-2 py-1 text-[8px] font-black text-slate-400">
+                      opcional
+                    </span>
+                  </div>
 
                   <input
                     value={
@@ -1990,22 +2327,36 @@ export default function TarefasPage() {
                         event.target.value
                       )
                     }
-                    placeholder="Ex.: Rotina"
+                    placeholder="Ex.: Saúde"
                     className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition placeholder:text-slate-300 focus:border-[#22C7D9]"
                   />
+
+                  <p className="mt-2 text-[10px] text-slate-400">
+                    Se deixar em branco, será usada a categoria “Geral”.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
-                    REPETIÇÃO
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                      REPETIÇÃO
+                    </label>
 
-                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
+                      obrigatório
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => {
                         setModoRepeticao(
                           "once"
+                        );
+
+                        setDiasPersonalizados(
+                          []
                         );
 
                         setHorarioInicio(
@@ -2015,12 +2366,16 @@ export default function TarefasPage() {
                         setHorarioFim(
                           ""
                         );
+
+                        setMensagemErro(
+                          ""
+                        );
                       }}
-                      className={`rounded-2xl border-2 p-4 text-left transition ${
+                      className={`rounded-[22px] border-2 p-4 text-left transition ${
                         modoRepeticao ===
                         "once"
                           ? "border-[#22C7D9] bg-[#EAF8FB]"
-                          : "border-[#E8EEF5] bg-[#F8FBFE]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE] hover:border-[#CFE9ED]"
                       }`}
                     >
                       <p
@@ -2041,16 +2396,24 @@ export default function TarefasPage() {
 
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         setModoRepeticao(
                           "daily"
-                        )
-                      }
-                      className={`rounded-2xl border-2 p-4 text-left transition ${
+                        );
+
+                        setDiasPersonalizados(
+                          []
+                        );
+
+                        setMensagemErro(
+                          ""
+                        );
+                      }}
+                      className={`rounded-[22px] border-2 p-4 text-left transition ${
                         modoRepeticao ===
                         "daily"
                           ? "border-[#8B5CF6] bg-[#F1ECFF]"
-                          : "border-[#E8EEF5] bg-[#F8FBFE]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE] hover:border-[#DDD3FA]"
                       }`}
                     >
                       <p
@@ -2065,30 +2428,191 @@ export default function TarefasPage() {
                       </p>
 
                       <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                        Renova automaticamente no dia seguinte.
+                        Volta automaticamente todos os dias.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoRepeticao(
+                          "weekdays"
+                        );
+
+                        setDiasPersonalizados(
+                          []
+                        );
+
+                        setMensagemErro(
+                          ""
+                        );
+                      }}
+                      className={`rounded-[22px] border-2 p-4 text-left transition ${
+                        modoRepeticao ===
+                        "weekdays"
+                          ? "border-[#22C55E] bg-[#EEFBEF]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE] hover:border-[#CFEDD5]"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-black ${
+                          modoRepeticao ===
+                          "weekdays"
+                            ? "text-[#238A3A]"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        Dias úteis
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                        Segunda a sexta-feira.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModoRepeticao(
+                          "custom"
+                        );
+
+                        setMensagemErro(
+                          ""
+                        );
+                      }}
+                      className={`rounded-[22px] border-2 p-4 text-left transition ${
+                        modoRepeticao ===
+                        "custom"
+                          ? "border-[#F97316] bg-[#FFF3EA]"
+                          : "border-[#E8EEF5] bg-[#F8FBFE] hover:border-[#F8D7BD]"
+                      }`}
+                    >
+                      <p
+                        className={`text-sm font-black ${
+                          modoRepeticao ===
+                          "custom"
+                            ? "text-[#E46611]"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        Personalizado
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                        Escolha os dias da semana.
                       </p>
                     </button>
                   </div>
                 </div>
 
                 {modoRepeticao ===
-                  "daily" && (
+                  "custom" && (
+                  <div className="rounded-[22px] bg-[#FFF8F1] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[9px] font-black tracking-[0.18em] text-[#E46611]">
+                          DIAS DA SEMANA
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Escolha pelo menos um dia.
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[8px] font-black text-[#E46611] shadow-sm">
+                        obrigatório
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7">
+                      {diasSemana.map(
+                        (dia) => {
+                          const selecionado =
+                            diasPersonalizados.includes(
+                              dia.numero
+                            );
+
+                          return (
+                            <button
+                              key={
+                                dia.numero
+                              }
+                              type="button"
+                              title={
+                                dia.nome
+                              }
+                              onClick={() =>
+                                trocarDiaPersonalizado(
+                                  dia.numero
+                                )
+                              }
+                              className={`rounded-2xl px-2 py-3 text-xs font-black transition ${
+                                selecionado
+                                  ? "bg-[#F97316] text-white shadow-[0_6px_14px_rgba(249,115,22,.18)]"
+                                  : "bg-white text-slate-400 shadow-sm hover:text-[#E46611]"
+                              }`}
+                            >
+                              {
+                                dia.curto
+                              }
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    {diasPersonalizados.length >
+                      0 && (
+                      <p className="mt-3 text-xs font-bold text-[#E46611]">
+                        Repete:{" "}
+                        {diasSemana
+                          .filter(
+                            (dia) =>
+                              diasPersonalizados.includes(
+                                dia.numero
+                              )
+                          )
+                          .map(
+                            (dia) =>
+                              dia.curto
+                          )
+                          .join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {modoRepeticao !==
+                  "once" && (
                   <div className="rounded-[22px] bg-[#F8F6FF] p-4">
                     <div className="mb-4">
-                      <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">
-                        JANELA DO DIA
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">
+                          JANELA DO DIA
+                        </p>
+
+                        <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-slate-400">
+                          opcional
+                        </span>
+                      </div>
 
                       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                        Os horários são opcionais. Sem horário, a tarefa fica disponível durante todo o dia.
+                        Sem horário, a tarefa fica disponível durante todo o dia em que estiver programada.
                       </p>
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
-                          DISPONÍVEL A PARTIR DE
-                        </label>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
+                            DISPONÍVEL A PARTIR DE
+                          </label>
+
+                          <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-slate-400">
+                            opcional
+                          </span>
+                        </div>
 
                         <input
                           type="time"
@@ -2107,9 +2631,15 @@ export default function TarefasPage() {
                       </div>
 
                       <div>
-                        <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
-                          ENCERRA ÀS
-                        </label>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[9px] font-black tracking-[0.14em] text-slate-400">
+                            ENCERRA ÀS
+                          </label>
+
+                          <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-slate-400">
+                            opcional
+                          </span>
+                        </div>
 
                         <input
                           type="time"
@@ -2131,11 +2661,11 @@ export default function TarefasPage() {
                     <div className="mt-3 rounded-2xl bg-white px-4 py-3 text-xs text-slate-500">
                       Exemplo:{" "}
                       <strong className="text-slate-700">
-                        Acordar cedo
+                        Caminhar
                       </strong>{" "}
                       pode ficar disponível das{" "}
                       <strong className="text-slate-700">
-                        05:00 às 08:00
+                        06:00 às 09:00
                       </strong>
                       .
                     </div>
@@ -2148,7 +2678,13 @@ export default function TarefasPage() {
                   }
                   disabled={
                     salvando ||
-                    !titulo.trim()
+                    !titulo.trim() ||
+                    (
+                      modoRepeticao ===
+                        "custom" &&
+                      diasPersonalizados.length ===
+                        0
+                    )
                   }
                   className="rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.17)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -2243,26 +2779,36 @@ export default function TarefasPage() {
                   tarefa,
                   status,
                   estadoHorario,
+                  programadaHoje,
                 }) => {
                   const atualizando =
                     tarefaEmAtualizacao ===
                     tarefa.id;
 
                   const concluida =
+                    programadaHoje &&
                     status ===
-                    "Concluída";
+                      "Concluída";
 
                   const esperando =
+                    programadaHoje &&
                     status ===
-                    "Aguardando aprovação";
+                      "Aguardando aprovação";
+
+                  const foraDoDia =
+                    !programadaHoje &&
+                    tarefa.repeatMode !==
+                      "once";
 
                   const aindaNao =
+                    programadaHoje &&
                     status ===
                       "Pendente" &&
                     estadoHorario ===
                       "ainda_nao";
 
                   const encerrada =
+                    programadaHoje &&
                     status ===
                       "Pendente" &&
                     estadoHorario ===
@@ -2278,6 +2824,8 @@ export default function TarefasPage() {
                           ? "bg-[#F2FBF4]"
                           : esperando
                           ? "bg-[#FFF9EC]"
+                          : foraDoDia
+                          ? "bg-[#F3F5F8]"
                           : encerrada
                           ? "bg-[#F2F4F7]"
                           : aindaNao
@@ -2287,33 +2835,47 @@ export default function TarefasPage() {
                     >
                       <div className="min-w-0">
                         <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-[#F5F8FC] px-2.5 py-1 text-[9px] font-black text-slate-400">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-400 shadow-sm">
                             {
                               tarefa.categoria
                             }
                           </span>
 
-                          {tarefa.repeatMode ===
-                            "daily" && (
-                            <span className="rounded-full bg-[#F1ECFF] px-2.5 py-1 text-[9px] font-black text-[#7C4BE8]">
-                              ↻ Diária
-                            </span>
-                          )}
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[9px] font-black ${
+                              tarefa.repeatMode ===
+                                "once"
+                                ? "bg-[#EEF6FF] text-[#4B7FBF]"
+                                : tarefa.repeatMode ===
+                                  "daily"
+                                ? "bg-[#F1ECFF] text-[#7C4BE8]"
+                                : tarefa.repeatMode ===
+                                  "weekdays"
+                                ? "bg-[#EEFBEF] text-[#238A3A]"
+                                : "bg-[#FFF3EA] text-[#E46611]"
+                            }`}
+                          >
+                            {tarefa.repeatMode !==
+                              "once" &&
+                              "↻ "}
+                            {textoRepeticao(
+                              tarefa
+                            )}
+                          </span>
 
-                          {tarefa.repeatMode ===
+                          {tarefa.repeatMode !==
                             "once" && (
-                            <span className="rounded-full bg-[#EEF6FF] px-2.5 py-1 text-[9px] font-black text-[#4B7FBF]">
-                              Uma vez
-                            </span>
-                          )}
-
-                          {tarefa.repeatMode ===
-                            "daily" && (
                             <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-500 shadow-sm">
                               ◷{" "}
                               {textoHorario(
                                 tarefa
                               )}
+                            </span>
+                          )}
+
+                          {foraDoDia && (
+                            <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[9px] font-black text-slate-500">
+                              Não programada para hoje
                             </span>
                           )}
 
@@ -2325,8 +2887,8 @@ export default function TarefasPage() {
 
                           {concluida && (
                             <span className="rounded-full bg-[#DDF5E3] px-2.5 py-1 text-[9px] font-black text-[#25853D]">
-                              {tarefa.repeatMode ===
-                              "daily"
+                              {tarefa.repeatMode !==
+                              "once"
                                 ? "Concluída hoje"
                                 : "Aprovada"}
                             </span>
@@ -2347,6 +2909,7 @@ export default function TarefasPage() {
 
                         <h2
                           className={`text-lg font-black ${
+                            foraDoDia ||
                             encerrada
                               ? "text-slate-500"
                               : ""
@@ -2357,7 +2920,11 @@ export default function TarefasPage() {
                           }
                         </h2>
 
-                        {aindaNao ? (
+                        {foraDoDia ? (
+                          <p className="mt-1 text-xs text-slate-400">
+                            Esta tarefa volta na próxima ocorrência programada.
+                          </p>
+                        ) : aindaNao ? (
                           <p className="mt-1 text-xs font-bold text-[#7250C8]">
                             Disponível a partir das{" "}
                             {formatarHora(
@@ -2366,22 +2933,23 @@ export default function TarefasPage() {
                           </p>
                         ) : encerrada ? (
                           <p className="mt-1 text-xs text-slate-400">
+                            O prazo de hoje terminou
+                            {tarefa.availableUntil
+                              ? ` às ${formatarHora(
+                                  tarefa.availableUntil
+                                )}`
+                              : ""}
+                            .{" "}
                             {tarefa.repeatMode ===
                             "daily"
-                              ? `O prazo de hoje terminou${
-                                  tarefa.availableUntil
-                                    ? ` às ${formatarHora(
-                                        tarefa.availableUntil
-                                      )}`
-                                    : ""
-                                }. Ela volta amanhã.`
-                              : "Esta tarefa não está disponível."}
+                              ? "Ela volta amanhã."
+                              : "Ela volta na próxima ocorrência programada."}
                           </p>
                         ) : concluida &&
-                          tarefa.repeatMode ===
-                            "daily" ? (
+                          tarefa.repeatMode !==
+                            "once" ? (
                           <p className="mt-1 text-xs text-slate-400">
-                            +1 casa conquistada hoje. Amanhã esta tarefa estará disponível novamente.
+                            +1 casa conquistada nesta ocorrência.
                           </p>
                         ) : (
                           <p className="mt-1 text-xs text-slate-400">
@@ -2391,8 +2959,9 @@ export default function TarefasPage() {
                       </div>
 
                       <div className="mt-4 shrink-0 sm:mt-0">
-                        {status ===
-                          "Pendente" &&
+                        {programadaHoje &&
+                          status ===
+                            "Pendente" &&
                           estadoHorario ===
                             "disponivel" && (
                             <button
@@ -2412,6 +2981,12 @@ export default function TarefasPage() {
                             </button>
                           )}
 
+                        {foraDoDia && (
+                          <div className="rounded-2xl bg-slate-200 px-5 py-3.5 text-center text-sm font-black text-slate-500">
+                            Fora da programação
+                          </div>
+                        )}
+
                         {aindaNao && (
                           <div className="rounded-2xl bg-[#E8E1FF] px-5 py-3.5 text-center text-sm font-black text-[#7250C8]">
                             {tarefa.availableFrom
@@ -2424,7 +2999,7 @@ export default function TarefasPage() {
 
                         {encerrada && (
                           <div className="rounded-2xl bg-slate-200 px-5 py-3.5 text-center text-sm font-black text-slate-500">
-                            Volta amanhã
+                            Encerrada hoje
                           </div>
                         )}
 
@@ -2453,7 +3028,7 @@ export default function TarefasPage() {
           </p>
 
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-            O administrador pode criar tarefas únicas ou diárias. As tarefas diárias renovam todos os dias e podem ter um horário específico para conclusão. Você registra a foto naquele momento e, quando outro jogador aprovar, avança uma casa.
+            O administrador escolhe quando cada tarefa se repete. Ela pode acontecer uma única vez, todos os dias, de segunda a sexta ou apenas em dias específicos. Nas tarefas recorrentes, cada jogador pode conquistar +1 casa em cada ocorrência programada.
           </p>
         </section>
       </div>

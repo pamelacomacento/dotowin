@@ -30,11 +30,17 @@ const opcoesCasas = [20, 30, 45, 60];
 
 function Logo() {
   return (
-    <img
-      src="/dotowin-logo.png"
-      alt="DoToWin"
-      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
-    />
+    <Link
+      href="/"
+      aria-label="Voltar para a página inicial"
+      className="block shrink-0 rounded-xl transition hover:opacity-80"
+    >
+      <img
+        src="/dotowin-logo.png"
+        alt="DoToWin"
+        className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+      />
+    </Link>
   );
 }
 
@@ -624,9 +630,7 @@ export default function PartidasPage() {
 
     router.push("/login");
     router.refresh();
-  }
-
-  return (
+  }  return (
     <main className="min-h-screen bg-[#F5F8FC] pb-10 text-[#1F2937]">
       <div className="mx-auto max-w-[1180px] px-4 py-4 sm:px-6 lg:py-6">
         <header className="mb-8 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
@@ -705,9 +709,15 @@ export default function PartidasPage() {
             </div>
 
             <div className="mt-7">
-              <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
-                NOME DA PARTIDA
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                  NOME DA PARTIDA
+                </label>
+
+                <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
+                  obrigatório
+                </span>
+              </div>
 
               <input
                 value={
@@ -731,9 +741,15 @@ export default function PartidasPage() {
             <div className="mt-7">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
-                    TAMANHO DA CORRIDA
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                      TAMANHO DA CORRIDA
+                    </label>
+
+                    <span className="rounded-full bg-[#EAF8FB] px-2 py-1 text-[8px] font-black text-[#1594A3]">
+                      obrigatório
+                    </span>
+                  </div>
 
                   <p className="mt-1 text-xs text-slate-500">
                     Uma aprovação vale exatamente uma casa.
@@ -833,9 +849,15 @@ export default function PartidasPage() {
 
               {modoPersonalizado && (
                 <div className="mt-4 rounded-[22px] bg-[#F7F4FF] p-4">
-                  <label className="text-[10px] font-black tracking-[0.18em] text-[#8B5CF6]">
-                    QUANTIDADE PERSONALIZADA
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-black tracking-[0.18em] text-[#8B5CF6]">
+                      QUANTIDADE PERSONALIZADA
+                    </label>
+
+                    <span className="rounded-full bg-white px-2 py-1 text-[8px] font-black text-[#8B5CF6] shadow-sm">
+                      obrigatório
+                    </span>
+                  </div>
 
                   <div className="mt-3 flex items-center gap-3">
                     <input
@@ -958,6 +980,16 @@ export default function PartidasPage() {
             </div>
 
             <div className="mx-auto mt-7 max-w-lg">
+              <div className="mb-2 flex items-center justify-center gap-2">
+                <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                  CÓDIGO DA PARTIDA
+                </label>
+
+                <span className="rounded-full bg-[#F1ECFF] px-2 py-1 text-[8px] font-black text-[#8B5CF6]">
+                  obrigatório
+                </span>
+              </div>
+
               <input
                 value={codigoEntrada}
                 onChange={(

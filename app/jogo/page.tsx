@@ -19,10 +19,148 @@ type Partida = {
   totalCasas: number;
 };
 
+type ModoRepeticao =
+  | "once"
+  | "daily"
+  | "weekdays"
+  | "custom";
+
+type TarefaContador = {
+  id: number;
+  repeat_mode: ModoRepeticao | string | null;
+  repeat_days: number[] | null;
+  available_from: string | null;
+  available_until: string | null;
+};
+
 type SubmissaoJogador = {
   task_id: number;
   status: string;
+  occurrence_date: string | null;
 };
+
+function horaEmMinutos(
+  hora: string | null
+) {
+  if (!hora) {
+    return null;
+  }
+
+  const [horas, minutos] =
+    hora.split(":").map(Number);
+
+  if (
+    !Number.isFinite(horas) ||
+    !Number.isFinite(minutos)
+  ) {
+    return null;
+  }
+
+  return horas * 60 + minutos;
+}
+
+function obterAgoraBrasil() {
+  const partes =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }
+    ).formatToParts(new Date());
+
+  const mapa =
+    Object.fromEntries(
+      partes.map((parte) => [
+        parte.type,
+        parte.value,
+      ])
+    );
+
+  const data =
+    `${mapa.year}-${mapa.month}-${mapa.day}`;
+
+  const ano = Number(mapa.year);
+  const mes = Number(mapa.month);
+  const dia = Number(mapa.day);
+
+  const diaSemana =
+    new Date(
+      Date.UTC(ano, mes - 1, dia)
+    ).getUTCDay();
+
+  return {
+    data,
+    diaSemana,
+    minutos:
+      Number(mapa.hour) * 60 +
+      Number(mapa.minute),
+  };
+}
+
+function tarefaProgramadaAgora(
+  tarefa: TarefaContador,
+  diaSemana: number,
+  agoraMinutos: number
+) {
+  const modo =
+    tarefa.repeat_mode || "once";
+
+  if (modo === "once") {
+    return true;
+  }
+
+  if (modo === "weekdays") {
+    if (
+      diaSemana < 1 ||
+      diaSemana > 5
+    ) {
+      return false;
+    }
+  } else if (modo === "custom") {
+    const dias = Array.isArray(
+      tarefa.repeat_days
+    )
+      ? tarefa.repeat_days
+      : [];
+
+    if (!dias.includes(diaSemana)) {
+      return false;
+    }
+  } else if (modo !== "daily") {
+    return false;
+  }
+
+  const inicio = horaEmMinutos(
+    tarefa.available_from
+  );
+
+  const fim = horaEmMinutos(
+    tarefa.available_until
+  );
+
+  if (
+    inicio !== null &&
+    agoraMinutos < inicio
+  ) {
+    return false;
+  }
+
+  if (
+    fim !== null &&
+    agoraMinutos > fim
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 function limitarPosicao(
   posicao: number,
@@ -147,11 +285,17 @@ function Peao({
 
 function Logo() {
   return (
-    <img
-      src="/dotowin-logo.png"
-      alt="DoToWin"
-      className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
-    />
+    <Link
+      href="/"
+      aria-label="Voltar para a página inicial"
+      className="block shrink-0 rounded-xl transition hover:opacity-80"
+    >
+      <img
+        src="/dotowin-logo.png"
+        alt="DoToWin"
+        className="h-[54px] w-auto max-w-[205px] object-contain mix-blend-multiply sm:h-[60px] sm:max-w-[225px]"
+      />
+    </Link>
   );
 }
 
@@ -690,9 +834,7 @@ function StartMobile({
           <span className="text-xl font-black">
             0
           </span>
-        </div>
-
-        <p className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-[0.2em] text-[#1594A3]">
+        </div>        <p className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-[9px] font-black tracking-[0.2em] text-[#1594A3]">
           START
         </p>
       </div>
@@ -894,6 +1036,11 @@ export default function Home() {
   ] = useState(0);
 
   const [
+    totalTarefas,
+    setTotalTarefas,
+  ] = useState(0);
+
+  const [
     aprovacoesPendentes,
     setAprovacoesPendentes,
   ] = useState(0);
@@ -906,6 +1053,11 @@ export default function Home() {
   const [
     mensagemErro,
     setMensagemErro,
+  ] = useState("");
+
+  const [
+    mensagemConvite,
+    setMensagemConvite,
   ] = useState("");
 
   useEffect(() => {
@@ -1139,7 +1291,9 @@ export default function Home() {
 
       supabase
         .from("tasks")
-        .select("id")
+        .select(
+          "id, repeat_mode, repeat_days, available_from, available_until"
+        )
         .eq(
           "game_id",
           gameId
@@ -1148,7 +1302,7 @@ export default function Home() {
       supabase
         .from("submissions")
         .select(
-          "task_id, status"
+          "task_id, status, occurrence_date"
         )
         .eq(
           "player_id",
@@ -1251,37 +1405,82 @@ export default function Home() {
           ),
       }));
 
-    const mapaSubmissoes =
-      new Map<number, string>();
+    const tarefasDoBanco =
+      (
+        tarefasData ||
+        []
+      ) as TarefaContador[];
 
-    (
-      (submissoesDoJogador ||
-        []) as SubmissaoJogador[]
-    ).forEach(
-      (submissao) => {
-        mapaSubmissoes.set(
-          submissao.task_id,
-          submissao.status
-        );
-      }
-    );
+    const submissoesDoBanco =
+      (
+        submissoesDoJogador ||
+        []
+      ) as SubmissaoJogador[];
+
+    const agoraBrasil =
+      obterAgoraBrasil();
 
     const quantidadeTarefasPendentes =
-      (
-        tarefasData || []
-      ).filter((tarefa) => {
-        const status =
-          mapaSubmissoes.get(
-            tarefa.id
-          );
+      tarefasDoBanco.filter(
+        (tarefa) => {
+          const modo =
+            tarefa.repeat_mode ||
+            "once";
 
-        return (
-          !status ||
-          status === "Pendente" ||
-          status === "rejected" ||
-          status === "Rejeitada"
-        );
-      }).length;
+          const programadaAgora =
+            tarefaProgramadaAgora(
+              tarefa,
+              agoraBrasil.diaSemana,
+              agoraBrasil.minutos
+            );
+
+          if (
+            !programadaAgora
+          ) {
+            return false;
+          }
+
+          const submissaoAtual =
+            submissoesDoBanco.find(
+              (submissao) => {
+                if (
+                  submissao.task_id !==
+                  tarefa.id
+                ) {
+                  return false;
+                }
+
+                if (
+                  modo === "once"
+                ) {
+                  return (
+                    submissao.occurrence_date ===
+                      null
+                  );
+                }
+
+                return (
+                  submissao.occurrence_date ===
+                  agoraBrasil.data
+                );
+              }
+            );
+
+          if (
+            !submissaoAtual
+          ) {
+            return true;
+          }
+
+          return [
+            "Pendente",
+            "rejected",
+            "Rejeitada",
+          ].includes(
+            submissaoAtual.status
+          );
+        }
+      ).length;
 
     const idsOutrosJogadores =
       (
@@ -1347,6 +1546,10 @@ export default function Home() {
       jogadoresDoBanco
     );
 
+    setTotalTarefas(
+      tarefasDoBanco.length
+    );
+
     setTarefasPendentes(
       quantidadeTarefasPendentes
     );
@@ -1356,6 +1559,85 @@ export default function Home() {
     );
 
     setCarregando(false);
+  }
+
+  async function copiarCodigo() {
+    if (!partida?.codigo) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        partida.codigo
+      );
+
+      setMensagemConvite(
+        "Código copiado!"
+      );
+
+      window.setTimeout(() => {
+        setMensagemConvite("");
+      }, 2500);
+    } catch (error) {
+      console.error(
+        "Erro ao copiar código:",
+        error
+      );
+
+      setMensagemConvite(
+        "Não foi possível copiar o código."
+      );
+    }
+  }
+
+  async function compartilharConvite() {
+    if (!partida?.codigo) {
+      return;
+    }
+
+    const link =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/partidas`
+        : "";
+
+    const texto =
+      `Vem jogar DoToWin comigo!\n\n` +
+      `Partida: ${partida.nome}\n` +
+      `Código: ${partida.codigo}\n\n` +
+      `Entre aqui: ${link}`;
+
+    try {
+      if (
+        typeof navigator !==
+          "undefined" &&
+        navigator.share
+      ) {
+        await navigator.share({
+          title:
+            "Convite DoToWin",
+          text: texto,
+        });
+
+        return;
+      }
+
+      await navigator.clipboard.writeText(
+        texto
+      );
+
+      setMensagemConvite(
+        "Convite copiado! Agora é só enviar."
+      );
+
+      window.setTimeout(() => {
+        setMensagemConvite("");
+      }, 3000);
+    } catch (error) {
+      console.error(
+        "Erro ao compartilhar convite:",
+        error
+      );
+    }
   }
 
   const totalCasas =
@@ -1368,15 +1650,22 @@ export default function Home() {
         a.posicao
     );
 
-  const lider =
-    ranking[0] || null;
-
   const jogadorAtual =
     jogadores.find(
       (jogador) =>
         jogador.id ===
         jogadorAtualId
     ) || null;
+
+  const estaNaFrente =
+    jogadorAtual &&
+    jogadores.length > 1 &&
+    jogadores.every(
+      (jogador) =>
+        jogador.id === jogadorAtual.id ||
+        jogadorAtual.posicao >
+          jogador.posicao
+    );
 
   const posicaoAtual =
     jogadorAtual?.posicao ?? 0;
@@ -1385,7 +1674,11 @@ export default function Home() {
     jogadorAtual?.cor ||
     "#3B82F6";
 
-  return (
+  const temOponente =
+    jogadores.length >= 2;
+
+  const temTarefas =
+    totalTarefas > 0;  return (
     <main className="min-h-screen bg-[#F5F8FC] pb-24 text-[#1F2937] lg:pb-0">
       <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-5 lg:px-6">
         <header className="mb-5 flex items-center justify-between gap-3 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] lg:px-5">
@@ -1451,281 +1744,267 @@ export default function Home() {
           </div>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
-          <aside className="hidden xl:block">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[10px] font-black tracking-[0.25em] text-slate-400">
-                JOGADORES
+        {carregando ? (
+          <div className="flex min-h-[500px] items-center justify-center rounded-[30px] bg-white shadow-[0_14px_42px_rgba(15,23,42,.06)]">
+            <div className="text-center">
+              <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-100 border-t-[#22C7D9]" />
+
+              <p className="mt-3 text-sm font-bold text-slate-400">
+                Montando a corrida...
+              </p>
+            </div>
+          </div>
+        ) : !temOponente ? (
+          <section className="mx-auto max-w-[920px]">
+            <div className="overflow-hidden rounded-[32px] bg-white shadow-[0_16px_48px_rgba(15,23,42,.07)]">
+              <div className="bg-[#F1ECFF] px-5 py-8 text-center sm:px-8 sm:py-10">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-[0_8px_24px_rgba(139,92,246,.10)]">
+                  <div className="flex items-end">
+                    <Peao
+                      cor={
+                        jogadorAtual?.cor ||
+                        "#38BDF8"
+                      }
+                    />
+
+                    <div className="-ml-2 flex h-10 w-8 items-center justify-center rounded-full border-2 border-dashed border-[#C8B9F4] text-lg font-black text-[#8B5CF6]">
+                      ?
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-6 text-[10px] font-black tracking-[0.24em] text-[#8B5CF6]">
+                  SALA DE ESPERA
+                </p>
+
+                <h1 className="mx-auto mt-3 max-w-xl text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+                  Falta um oponente para começar
+                </h1>
+
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
+                  Convide pelo menos mais uma pessoa para a partida. No DoToWin, outro jogador precisa validar suas tarefas antes de você avançar.
+                </p>
+              </div>
+
+              <div className="p-5 sm:p-8">
+                <div className="mx-auto max-w-2xl rounded-[26px] border-2 border-dashed border-[#CDECF0] bg-[#F8FBFE] p-5 text-center sm:p-6">
+                  <p className="text-[9px] font-black tracking-[0.2em] text-slate-400">
+                    CÓDIGO DA PARTIDA
+                  </p>
+
+                  <p className="mt-3 text-4xl font-black tracking-[0.24em] text-[#22C7D9] sm:text-5xl">
+                    {partida?.codigo}
+                  </p>
+
+                  <p className="mt-3 text-xs text-slate-400">
+                    Envie este código para quem vai jogar com você.
+                  </p>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={
+                        copiarCodigo
+                      }
+                      className="rounded-2xl bg-white px-5 py-4 text-sm font-black text-[#1594A3] shadow-[0_6px_18px_rgba(15,23,42,.06)] transition hover:-translate-y-0.5"
+                    >
+                      Copiar código
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        compartilharConvite
+                      }
+                      className="rounded-2xl bg-[#8B5CF6] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(139,92,246,.16)] transition hover:-translate-y-0.5"
+                    >
+                      Compartilhar convite
+                    </button>
+                  </div>
+
+                  {mensagemConvite && (
+                    <div className="mt-4 rounded-2xl bg-[#EEFBEF] px-4 py-3 text-xs font-black text-[#25853D]">
+                      {mensagemConvite}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[24px] bg-[#EAF8FB] p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-[9px] font-black tracking-[0.18em] text-[#1594A3]">
+                          JOGADORES
+                        </p>
+
+                        <p className="mt-2 text-2xl font-black">
+                          {jogadores.length} de 2
+                        </p>
+                      </div>
+
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl font-black text-[#22C7D9] shadow-sm">
+                        {jogadores.length}
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                      Você precisa de pelo menos 1 oponente para a validação funcionar.
+                    </p>
+                  </div>
+
+                  <div
+                    className={`rounded-[24px] p-5 ${
+                      temTarefas
+                        ? "bg-[#EEFBEF]"
+                        : "bg-[#FFF8E7]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p
+                          className={`text-[9px] font-black tracking-[0.18em] ${
+                            temTarefas
+                              ? "text-[#25853D]"
+                              : "text-[#B87C00]"
+                          }`}
+                        >
+                          TAREFAS
+                        </p>
+
+                        <p className="mt-2 text-2xl font-black">
+                          {totalTarefas}
+                        </p>
+                      </div>
+
+                      <div
+                        className={`flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl font-black shadow-sm ${
+                          temTarefas
+                            ? "text-[#22C55E]"
+                            : "text-[#F4B942]"
+                        }`}
+                      >
+                        {temTarefas
+                          ? "✓"
+                          : "!"}
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                      {temTarefas
+                        ? "As tarefas já estão preparadas para a corrida."
+                        : "Você pode criar as tarefas enquanto espera seu oponente entrar."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                  <Link
+                    href="/tarefas"
+                    className="flex items-center justify-center rounded-2xl bg-[#22C7D9] px-7 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.17)] transition hover:-translate-y-0.5"
+                  >
+                    {temTarefas
+                      ? "Ver tarefas"
+                      : "+ Criar tarefas"}
+                  </Link>
+
+                  <Link
+                    href="/partidas"
+                    className="flex items-center justify-center rounded-2xl bg-[#F5F8FC] px-7 py-4 text-sm font-black text-slate-500 transition hover:bg-slate-100"
+                  >
+                    Voltar às partidas
+                  </Link>
+                </div>
+
+                <div className="mt-7 flex items-center justify-center gap-3 rounded-[22px] bg-[#F8FBFE] p-4">
+                  <div className="flex gap-1">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C7D9]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[#8B5CF6]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C55E]" />
+                  </div>
+
+                  <p className="text-xs font-bold text-slate-400">
+                    Aguardando outro jogador entrar...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : !temTarefas ? (
+          <section className="mx-auto max-w-[820px]">
+            <div className="rounded-[32px] bg-white p-6 text-center shadow-[0_16px_48px_rgba(15,23,42,.07)] sm:p-10">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FFF8E7] text-3xl font-black text-[#D89900]">
+                +
+              </div>
+
+              <p className="mt-6 text-[10px] font-black tracking-[0.22em] text-[#22C7D9]">
+                OPONENTE PRONTO
               </p>
 
-              <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-500 shadow-sm">
-                {jogadores.length}
-              </span>
-            </div>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.04em]">
+                Agora só faltam as tarefas
+              </h1>
 
-            <div className="space-y-3">
-              {ranking.map(
-                (
-                  jogador,
-                  index
-                ) => {
-                  const progresso =
-                    Math.min(
-                      100,
-                      Math.round(
-                        (jogador.posicao /
-                          totalCasas) *
-                          100
-                      )
-                    );
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
+                Já existem {jogadores.length} jogadores na partida. Crie pelo menos uma tarefa para colocar a corrida em movimento.
+              </p>
 
-                  const souEu =
-                    jogador.id ===
-                    jogadorAtualId;
-
-                  return (
+              <div className="mx-auto mt-7 flex max-w-md -space-x-3 justify-center">
+                {jogadores.map(
+                  (jogador) => (
                     <div
                       key={
                         jogador.id
                       }
-                      className={`rounded-[22px] bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,.05)] ${
-                        souEu
-                          ? "ring-2 ring-[#22C7D9]/25"
-                          : ""
-                      }`}
+                      className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#F8FBFE] shadow-sm"
                     >
-                      <div className="flex items-center gap-3">
-                        <Peao
-                          cor={
-                            jogador.cor
-                          }
-                        />
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-black">
-                              {
-                                jogador.nome
-                              }
-                            </p>
-
-                            {index ===
-                              0 && (
-                              <span className="rounded-full bg-[#FFF4CC] px-2 py-0.5 text-[8px] font-black text-[#C98A00]">
-                                LÍDER
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="mt-1 flex items-baseline gap-1">
-                            <span
-                              className="text-xl font-black"
-                              style={{
-                                color:
-                                  jogador.cor,
-                              }}
-                            >
-                              {
-                                jogador.posicao
-                              }
-                            </span>
-
-                            <span className="text-[10px] text-slate-400">
-                              /{" "}
-                              {
-                                totalCasas
-                              }
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex items-center gap-3">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${progresso}%`,
-                              backgroundColor:
-                                jogador.cor,
-                            }}
-                          />
-                        </div>
-
-                        <span className="text-[9px] font-bold text-slate-400">
-                          {progresso}%
-                        </span>
-                      </div>
-
-                      {souEu && (
-                        <Link
-                          href="/personalizar"
-                          className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#F5F8FC] px-3 py-2.5 text-[10px] font-black text-slate-500 transition hover:bg-[#EAF8FB] hover:text-[#1594A3]"
-                        >
-                          <span
-                            className="h-2.5 w-2.5 rounded-full"
-                            style={{
-                              backgroundColor:
-                                jogador.cor,
-                            }}
-                          />
-
-                          Trocar cor
-                        </Link>
-                      )}
+                      <Peao
+                        cor={
+                          jogador.cor
+                        }
+                        pequeno
+                      />
                     </div>
-                  );
-                }
-              )}
-            </div>
-
-            <div className="mt-4 rounded-[22px] bg-[#EEFCE7] p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#58CC02] text-sm font-black text-white">
-                  H
-                </div>
-
-                <div>
-                  <p className="text-xs font-black text-[#3A8F00]">
-                    HAPPY
-                  </p>
-
-                  <p className="text-[9px] text-[#5E7A4D]">
-                    parceiro de progresso
-                  </p>
-                </div>
+                  )
+                )}
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-[#496239]">
-                {lider
-                  ? `${lider.nome} está na frente. Uma boa sequência pode mudar essa corrida.`
-                  : "A corrida começa quando os jogadores entram na partida."}
-              </p>
+              <Link
+                href="/tarefas"
+                className="mt-8 inline-flex items-center justify-center rounded-2xl bg-[#22C7D9] px-8 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.17)] transition hover:-translate-y-0.5"
+              >
+                + Criar tarefas
+              </Link>
             </div>
-          </aside>
+          </section>
+        ) : (
+          <div className="grid gap-5 xl:grid-cols-[225px_minmax(0,1fr)]">
+            <aside className="hidden xl:block">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-[10px] font-black tracking-[0.25em] text-slate-400">
+                  JOGADORES
+                </p>
 
-          <section className="min-w-0">
-            <div className="rounded-[30px] bg-white p-4 shadow-[0_14px_42px_rgba(15,23,42,.06)] sm:p-5 lg:p-6">
-              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-[10px] font-black tracking-[0.25em] text-[#22C7D9]">
-                    CORRIDA ATUAL
-                  </p>
-
-                  <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] sm:text-3xl">
-                    {totalCasas} casas até a vitória
-                  </h1>
-
-                  <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-                    Cada tarefa aprovada faz você avançar exatamente uma casa.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 lg:min-w-[380px]">
-                  <Link
-                    href="/tarefas"
-                    className="rounded-[20px] bg-[#EAF8FB] p-4 transition hover:-translate-y-0.5"
-                  >
-                    <p className="text-[9px] font-black tracking-wider text-[#1594A3]">
-                      SUAS TAREFAS
-                    </p>
-
-                    <p className="mt-2 text-2xl font-black text-[#1F2937]">
-                      {tarefasPendentes}
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      para concluir
-                    </p>
-                  </Link>
-
-                  <Link
-                    href="/aprovacoes"
-                    className="rounded-[20px] bg-[#F1ECFF] p-4 transition hover:-translate-y-0.5"
-                  >
-                    <p className="text-[9px] font-black tracking-wider text-[#8B5CF6]">
-                      APROVAÇÕES
-                    </p>
-
-                    <p className="mt-2 text-2xl font-black text-[#8B5CF6]">
-                      {aprovacoesPendentes}
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      aguardando você
-                    </p>
-                  </Link>
-                </div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-500 shadow-sm">
+                  {jogadores.length}
+                </span>
               </div>
 
-              {carregando ? (
-                <div className="flex min-h-[420px] items-center justify-center rounded-[28px] bg-[#F8FBFE]">
-                  <div className="text-center">
-                    <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-slate-100 border-t-[#22C7D9]" />
-
-                    <p className="mt-3 text-sm font-bold text-slate-400">
-                      Montando a corrida...
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <TabuleiroDesktop
-                    jogadores={jogadores}
-                    totalCasas={totalCasas}
-                    posicaoAtual={
-                      posicaoAtual
-                    }
-                    corJogadorAtual={
-                      corJogadorAtual
-                    }
-                  />
-
-                  <TabuleiroMobile
-                    jogadores={jogadores}
-                    totalCasas={totalCasas}
-                    posicaoAtual={
-                      posicaoAtual
-                    }
-                    corJogadorAtual={
-                      corJogadorAtual
-                    }
-                  />
-                </>
-              )}
-
-              <div className="mt-5 hidden gap-3 lg:grid lg:grid-cols-[1fr_1.45fr_1fr]">
-                <Link
-                  href="/tarefas"
-                  className="flex items-center justify-center rounded-2xl bg-[#F5F8FC] px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-100"
-                >
-                  Minhas tarefas
-                </Link>
-
-                <Link
-                  href="/tarefas"
-                  className="flex items-center justify-center rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black tracking-wide text-white shadow-[0_10px_24px_rgba(34,199,217,.18)] transition hover:-translate-y-0.5"
-                >
-                  + CONCLUIR TAREFA
-                </Link>
-
-                <Link
-                  href="/aprovacoes"
-                  className="flex items-center justify-center rounded-2xl bg-[#F1ECFF] px-5 py-4 text-sm font-black text-[#8B5CF6] transition hover:bg-[#E9DEFF]"
-                >
-                  Aprovações ·{" "}
-                  {aprovacoesPendentes}
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-4 xl:hidden">
-              <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="space-y-3">
                 {ranking.map(
                   (
                     jogador,
                     index
                   ) => {
+                    const progresso =
+                      Math.min(
+                        100,
+                        Math.round(
+                          (jogador.posicao /
+                            totalCasas) *
+                            100
+                        )
+                      );
+
                     const souEu =
                       jogador.id ===
                       jogadorAtualId;
@@ -1735,9 +2014,9 @@ export default function Home() {
                         key={
                           jogador.id
                         }
-                        className={`min-w-[165px] rounded-2xl bg-white p-3 shadow-[0_6px_18px_rgba(15,23,42,.05)] ${
+                        className={`rounded-[22px] bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,.05)] ${
                           souEu
-                            ? "ring-2 ring-[#22C7D9]/20"
+                            ? "ring-2 ring-[#22C7D9]/25"
                             : ""
                         }`}
                       >
@@ -1746,48 +2025,71 @@ export default function Home() {
                             cor={
                               jogador.cor
                             }
-                            pequeno
                           />
 
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-black">
-                              {
-                                jogador.nome
-                              }
-                            </p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-black">
+                                {
+                                  jogador.nome
+                                }
+                              </p>
 
-                            <p
-                              className="mt-1 text-sm font-black"
+                              {index ===
+                                0 && (
+                                <span className="rounded-full bg-[#FFF4CC] px-2 py-0.5 text-[8px] font-black text-[#C98A00]">
+                                  LÍDER
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-1 flex items-baseline gap-1">
+                              <span
+                                className="text-xl font-black"
+                                style={{
+                                  color:
+                                    jogador.cor,
+                                }}
+                              >
+                                {
+                                  jogador.posicao
+                                }
+                              </span>
+
+                              <span className="text-[10px] text-slate-400">
+                                /{" "}
+                                {
+                                  totalCasas
+                                }
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-3">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full"
                               style={{
-                                color:
+                                width: `${progresso}%`,
+                                backgroundColor:
                                   jogador.cor,
                               }}
-                            >
-                              {
-                                jogador.posicao
-                              }
-                              /
-                              {
-                                totalCasas
-                              }
-                            </p>
-
-                            {index ===
-                              0 && (
-                              <p className="text-[8px] font-black text-[#C98A00]">
-                                LÍDER
-                              </p>
-                            )}
+                            />
                           </div>
+
+                          <span className="text-[9px] font-bold text-slate-400">
+                            {progresso}%
+                          </span>
                         </div>
 
                         {souEu && (
                           <Link
                             href="/personalizar"
-                            className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-[#F5F8FC] px-2 py-2 text-[9px] font-black text-slate-500"
+                            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[#F5F8FC] px-3 py-2.5 text-[10px] font-black text-slate-500 transition hover:bg-[#EAF8FB] hover:text-[#1594A3]"
                           >
                             <span
-                              className="h-2 w-2 rounded-full"
+                              className="h-2.5 w-2.5 rounded-full"
                               style={{
                                 backgroundColor:
                                   jogador.cor,
@@ -1802,9 +2104,206 @@ export default function Home() {
                   }
                 )}
               </div>
-            </div>
-          </section>
-        </div>
+
+              {estaNaFrente && (
+                <div className="mt-4">
+                  <img
+                    src="/happy-iguana.png"
+                    alt="Happy Iguana — você está na frente, continue assim!"
+                    className="block h-auto w-full object-contain"
+                  />
+                </div>
+              )}
+            </aside>
+
+            <section className="min-w-0">
+              <div className="rounded-[30px] bg-white p-4 shadow-[0_14px_42px_rgba(15,23,42,.06)] sm:p-5 lg:p-6">
+                <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black tracking-[0.25em] text-[#22C7D9]">
+                      CORRIDA ATUAL
+                    </p>
+
+                    <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] sm:text-3xl">
+                      {totalCasas} casas até a vitória
+                    </h1>
+
+                    <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+                      Cada tarefa aprovada faz você avançar exatamente uma casa.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 lg:min-w-[380px]">
+                    <Link
+                      href="/tarefas"
+                      className="rounded-[20px] bg-[#EAF8FB] p-4 transition hover:-translate-y-0.5"
+                    >
+                      <p className="text-[9px] font-black tracking-wider text-[#1594A3]">
+                        SUAS TAREFAS
+                      </p>
+
+                      <p className="mt-2 text-2xl font-black text-[#1F2937]">
+                        {tarefasPendentes}
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        para concluir
+                      </p>
+                    </Link>
+
+                    <Link
+                      href="/aprovacoes"
+                      className="rounded-[20px] bg-[#F1ECFF] p-4 transition hover:-translate-y-0.5"
+                    >
+                      <p className="text-[9px] font-black tracking-wider text-[#8B5CF6]">
+                        APROVAÇÕES
+                      </p>
+
+                      <p className="mt-2 text-2xl font-black text-[#8B5CF6]">
+                        {aprovacoesPendentes}
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        aguardando você
+                      </p>
+                    </Link>
+                  </div>
+                </div>
+
+                <TabuleiroDesktop
+                  jogadores={jogadores}
+                  totalCasas={totalCasas}
+                  posicaoAtual={
+                    posicaoAtual
+                  }
+                  corJogadorAtual={
+                    corJogadorAtual
+                  }
+                />
+
+                <TabuleiroMobile
+                  jogadores={jogadores}
+                  totalCasas={totalCasas}
+                  posicaoAtual={
+                    posicaoAtual
+                  }
+                  corJogadorAtual={
+                    corJogadorAtual
+                  }
+                />
+
+                <div className="mt-5 hidden gap-3 lg:grid lg:grid-cols-[1fr_1.45fr_1fr]">
+                  <Link
+                    href="/tarefas"
+                    className="flex items-center justify-center rounded-2xl bg-[#F5F8FC] px-5 py-4 text-sm font-black text-slate-600 transition hover:bg-slate-100"
+                  >
+                    Minhas tarefas
+                  </Link>
+
+                  <Link
+                    href="/tarefas"
+                    className="flex items-center justify-center rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black tracking-wide text-white shadow-[0_10px_24px_rgba(34,199,217,.18)] transition hover:-translate-y-0.5"
+                  >
+                    + CONCLUIR TAREFA
+                  </Link>
+
+                  <Link
+                    href="/aprovacoes"
+                    className="flex items-center justify-center rounded-2xl bg-[#F1ECFF] px-5 py-4 text-sm font-black text-[#8B5CF6] transition hover:bg-[#E9DEFF]"
+                  >
+                    Aprovações ·{" "}
+                    {aprovacoesPendentes}
+                  </Link>
+                </div>
+              </div>
+
+              <div className="mt-4 xl:hidden">
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {ranking.map(
+                    (
+                      jogador,
+                      index
+                    ) => {
+                      const souEu =
+                        jogador.id ===
+                        jogadorAtualId;
+
+                      return (
+                        <div
+                          key={
+                            jogador.id
+                          }
+                          className={`min-w-[165px] rounded-2xl bg-white p-3 shadow-[0_6px_18px_rgba(15,23,42,.05)] ${
+                            souEu
+                              ? "ring-2 ring-[#22C7D9]/20"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Peao
+                              cor={
+                                jogador.cor
+                              }
+                              pequeno
+                            />
+
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-black">
+                                {
+                                  jogador.nome
+                                }
+                              </p>
+
+                              <p
+                                className="mt-1 text-sm font-black"
+                                style={{
+                                  color:
+                                    jogador.cor,
+                                }}
+                              >
+                                {
+                                  jogador.posicao
+                                }
+                                /
+                                {
+                                  totalCasas
+                                }
+                              </p>
+
+                              {index ===
+                                0 && (
+                                <p className="text-[8px] font-black text-[#C98A00]">
+                                  LÍDER
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {souEu && (
+                            <Link
+                              href="/personalizar"
+                              className="mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-[#F5F8FC] px-2 py-2 text-[9px] font-black text-slate-500"
+                            >
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    jogador.cor,
+                                }}
+                              />
+
+                              Trocar cor
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
 
       <nav className="fixed bottom-3 left-3 right-3 z-50 rounded-[24px] bg-white p-2 shadow-[0_14px_38px_rgba(15,23,42,.14)] lg:hidden">
