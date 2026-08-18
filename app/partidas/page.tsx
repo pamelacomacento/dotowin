@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Partida = {
@@ -81,7 +81,6 @@ function PeaoMini({
 
 export default function PartidasPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [partidas, setPartidas] =
     useState<Partida[]>([]);
@@ -136,7 +135,16 @@ export default function PartidasPage() {
   }, []);
 
   useEffect(() => {
-    const codigoDoLink = searchParams
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const parametros =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const codigoDoLink = parametros
       .get("codigo")
       ?.trim()
       .toUpperCase()
@@ -151,7 +159,7 @@ export default function PartidasPage() {
     setMostrarCriacao(false);
     setMostrarEntrada(true);
     setMensagemErro("");
-  }, [searchParams]);
+  }, []);
 
   async function carregarPartidas() {
     setCarregando(true);
