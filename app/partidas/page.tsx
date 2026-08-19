@@ -13,6 +13,8 @@ type Partida = {
   posicao: number;
   cor: string;
   totalCasas: number;
+  souAdmin: boolean;
+  iniciadaEm: string | null;
 };
 
 const coresJogadores = [
@@ -247,7 +249,7 @@ export default function PartidasPage() {
     } = await supabase
       .from("games")
       .select(
-        "id, name, code, status, total_spaces"
+        "id, name, code, status, total_spaces, admin_profile_id, started_at"
       )
       .in("id", idsPartidas);
 
@@ -288,6 +290,12 @@ export default function PartidasPage() {
           totalCasas:
             jogo.total_spaces ||
             60,
+          souAdmin:
+            jogo.admin_profile_id ===
+            user.id,
+          iniciadaEm:
+            jogo.started_at ||
+            null,
         };
       });
 
@@ -665,8 +673,8 @@ export default function PartidasPage() {
     router.push("/login");
     router.refresh();
   }  return (
-    <main className="min-h-screen bg-[#F5F8FC] pb-10 text-[#1F2937]">
-      <div className="mx-auto max-w-[1180px] px-4 py-4 sm:px-6 lg:py-6">
+    <main className="min-h-screen w-full overflow-x-hidden bg-[#F5F8FC] pb-10 text-[#1F2937]">
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-4 sm:px-6 lg:py-6">
         <header className="mb-8 flex items-center justify-between gap-4 rounded-[24px] bg-white px-4 py-3 shadow-[0_8px_28px_rgba(15,23,42,.05)] sm:px-5">
           <div className="flex items-center gap-5">
             <Logo />
@@ -711,7 +719,7 @@ export default function PartidasPage() {
         )}
 
         {mostrarCriacao && (
-          <section className="mb-7 rounded-[30px] bg-white p-5 shadow-[0_14px_42px_rgba(15,23,42,.06)] sm:p-7">
+          <section className="mb-7 w-full max-w-full overflow-hidden rounded-[30px] bg-white p-5 shadow-[0_14px_42px_rgba(15,23,42,.06)] sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black tracking-[0.2em] text-[#22C7D9]">
@@ -1039,7 +1047,7 @@ export default function PartidasPage() {
               </button>
             </div>
 
-            <div className="mx-auto mt-7 max-w-lg">
+            <div className="mx-auto mt-7 w-full max-w-lg min-w-0">
               <div className="mb-2 flex items-center justify-center gap-2">
                 <label className="text-[10px] font-black tracking-[0.18em] text-slate-400">
                   CÓDIGO DA PARTIDA
@@ -1077,7 +1085,7 @@ export default function PartidasPage() {
                 placeholder="ABCDE"
                 maxLength={5}
                 autoFocus
-                className="w-full rounded-[22px] border-2 border-[#E5DCFF] bg-[#F7F4FF] px-4 py-5 text-center text-2xl font-black uppercase tracking-[0.38em] text-[#8B5CF6] outline-none transition placeholder:text-[#C8B9F4] focus:border-[#8B5CF6]"
+                className="block w-full min-w-0 max-w-full rounded-[22px] border-2 border-[#E5DCFF] bg-[#F7F4FF] px-3 py-5 text-center text-2xl font-black uppercase tracking-[0.24em] text-[#8B5CF6] outline-none transition placeholder:text-[#C8B9F4] focus:border-[#8B5CF6] sm:px-4 sm:tracking-[0.38em]"
               />
             </div>
 
@@ -1193,8 +1201,15 @@ export default function PartidasPage() {
                               />
 
                               <span className="text-[9px] font-black tracking-[0.18em] text-slate-400">
-                                EM ANDAMENTO
+                                {partida.iniciadaEm
+                                  ? "EM ANDAMENTO"
+                                  : "SALA DE ESPERA"}
                               </span>
+                              {partida.souAdmin && (
+                                <span className="rounded-full bg-[#F1ECFF] px-2 py-1 text-[8px] font-black text-[#8B5CF6]">
+                                  VOCÊ É O ADMIN
+                                </span>
+                              )}
                             </div>
 
                             <h2 className="mt-2 truncate text-xl font-black">

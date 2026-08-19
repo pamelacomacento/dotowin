@@ -25,6 +25,7 @@ type Partida = {
   adminProfileId: string | null;
   approvalMode: "all" | "admin_only";
   adminApproverPlayerId: number | null;
+  iniciadaEm: string | null;
 };
 
 type ModoRepeticao =
@@ -1125,6 +1126,11 @@ export default function Home() {
     setEditandoAprovacao,
   ] = useState(false);
 
+  const [
+    iniciandoPartida,
+    setIniciandoPartida,
+  ] = useState(false);
+
   const posicaoAnteriorRef =
     useRef<number | null>(null);
 
@@ -1486,7 +1492,7 @@ export default function Home() {
       supabase
         .from("games")
         .select(
-          "id, name, code, total_spaces, prize, winner_player_id, finished_at, admin_profile_id, approval_mode, admin_approver_player_id"
+          "id, name, code, total_spaces, prize, winner_player_id, finished_at, admin_profile_id, approval_mode, admin_approver_player_id, started_at"
         )
         .eq("id", gameId)
         .single(),
@@ -1621,6 +1627,9 @@ export default function Home() {
             : "all",
         adminApproverPlayerId:
           partidaData.admin_approver_player_id ||
+          null,
+        iniciadaEm:
+          partidaData.started_at ||
           null,
       };
 
@@ -1935,6 +1944,54 @@ export default function Home() {
     setSalvandoAprovacao(false);
   }
 
+  async function comecarPartida() {
+    if (!partida || !souAdmin) {
+      return;
+    }
+
+    if (!temOponente) {
+      setMensagemErro(
+        "É preciso ter pelo menos 2 jogadores para começar."
+      );
+      return;
+    }
+
+    if (!temTarefas) {
+      setMensagemErro(
+        "Crie pelo menos uma tarefa antes de começar a partida."
+      );
+      return;
+    }
+
+    setIniciandoPartida(true);
+    setMensagemErro("");
+
+    const { error } = await supabase.rpc(
+      "start_game",
+      {
+        p_game_id: partida.id,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Erro ao começar partida:",
+        error
+      );
+
+      setMensagemErro(
+        error.message ||
+          "Não foi possível começar a partida."
+      );
+
+      setIniciandoPartida(false);
+      return;
+    }
+
+    await carregarPartida(true);
+    setIniciandoPartida(false);
+  }
+
   async function copiarCodigo() {
     if (!partida?.codigo) {
       return;
@@ -2070,6 +2127,11 @@ export default function Home() {
 
   const temTarefas =
     totalTarefas > 0;
+
+  const partidaIniciada =
+    Boolean(
+      partida?.iniciadaEm
+    );
 
   const vencedor =
     partida?.vencedorJogadorId
@@ -2625,7 +2687,7 @@ export default function Home() {
               </p>
             </div>
           </div>
-        ) : !temOponente ? (
+        ) : !partidaIniciada ? (
           <section className="mx-auto max-w-[920px]">
             <div className="overflow-hidden rounded-[32px] bg-white shadow-[0_16px_48px_rgba(15,23,42,.07)]">
               <div className="bg-[#F1ECFF] px-5 py-8 text-center sm:px-8 sm:py-10">
@@ -2653,11 +2715,17 @@ export default function Home() {
                 </p>
 
                 <h1 className="mx-auto mt-3 max-w-xl text-3xl font-black tracking-[-0.04em] sm:text-4xl">
-                  Falta um oponente para começar
+                  {temOponente
+                    ? "Tudo pronto para começar?"
+                    : "Falta um oponente para começar"}
                 </h1>
 
                 <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-500">
-                  Convide pelo menos mais uma pessoa para a partida. No DoToWin, outro jogador precisa validar suas tarefas antes de você avançar.
+                  {temOponente
+                    ? souAdmin
+                      ? "Quando todos os jogadores tiverem entrado e as tarefas estiverem prontas, clique em Começar partida."
+                      : "A partida ainda não começou. Aguarde o administrador liberar a corrida."
+                    : "Convide pelo menos mais uma pessoa para a partida. No DoToWin, outro jogador precisa validar suas tarefas antes de você avançar."}
                 </p>
               </div>
 
@@ -2713,7 +2781,7 @@ export default function Home() {
                         </p>
 
                         <p className="mt-2 text-2xl font-black">
-                          {jogadores.length} de 2
+                          {jogadores.length} jogador{jogadores.length === 1 ? "" : "es"}
                         </p>
                       </div>
 
@@ -2782,6 +2850,23 @@ export default function Home() {
                       : "+ Criar tarefas"}
                   </Link>
 
+                  {souAdmin && (
+                    <button
+                      type="button"
+                      onClick={comecarPartida}
+                      disabled={
+                        iniciandoPartida ||
+                        !temOponente ||
+                        !temTarefas
+                      }
+                      className="flex items-center justify-center rounded-2xl bg-[#8B5CF6] px-7 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(139,92,246,.17)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {iniciandoPartida
+                        ? "Começando..."
+                        : "Começar partida"}
+                    </button>
+                  )}
+
                   <Link
                     href="/partidas"
                     className="flex items-center justify-center rounded-2xl bg-[#F5F8FC] px-7 py-4 text-sm font-black text-slate-500 transition hover:bg-slate-100"
@@ -2798,13 +2883,17 @@ export default function Home() {
                   </div>
 
                   <p className="text-xs font-bold text-slate-400">
-                    Aguardando outro jogador entrar...
+                    {temOponente
+                      ? souAdmin
+                        ? "Aguardando você começar a partida..."
+                        : "Aguardando o admin começar a partida..."
+                      : "Aguardando outro jogador entrar..."}
                   </p>
                 </div>
               </div>
             </div>
           </section>
-        ) : !temTarefas ? (
+        ) : partidaIniciada && !temTarefas ? (
           <section className="mx-auto max-w-[820px]">
             <div className="rounded-[32px] bg-white p-6 text-center shadow-[0_16px_48px_rgba(15,23,42,.07)] sm:p-10">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#FFF8E7] text-3xl font-black text-[#D89900]">
@@ -2922,8 +3011,8 @@ export default function Home() {
               <>
                 {!editandoAprovacao ? (
                   <section className="mb-5 rounded-[24px] bg-white px-5 py-4 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:px-6">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+                      <div className="min-w-0">
                         <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
                           APROVAÇÃO DA PARTIDA
                         </p>
@@ -2959,9 +3048,9 @@ export default function Home() {
                             true
                           )
                         }
-                        className="shrink-0 rounded-2xl bg-[#F5F8FC] px-4 py-2.5 text-xs font-black text-slate-500 transition hover:bg-slate-100"
+                        className="shrink-0 rounded-2xl border-2 border-[#D9CCFF] bg-[#F7F4FF] px-4 py-2.5 text-xs font-black text-[#8B5CF6] transition hover:border-[#8B5CF6] hover:bg-[#F1ECFF]"
                       >
-                        Alterar
+                        Alterar aprovação
                       </button>
                     </div>
                   </section>
