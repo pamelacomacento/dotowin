@@ -28,6 +28,16 @@ type Partida = {
   iniciadaEm: string | null;
 };
 
+type EstadoResultado = {
+  status:
+    | "running"
+    | "awaiting_result"
+    | "finished";
+  dataFinalizacao: string | null;
+  finalistasIds: number[];
+  vencedoresIds: number[];
+};
+
 type ModoRepeticao =
   | "once"
   | "daily"
@@ -1131,6 +1141,16 @@ export default function Home() {
     setIniciandoPartida,
   ] = useState(false);
 
+  const [
+    estadoResultado,
+    setEstadoResultado,
+  ] = useState<EstadoResultado>({
+    status: "running",
+    dataFinalizacao: null,
+    finalistasIds: [],
+    vencedoresIds: [],
+  });
+
   const posicaoAnteriorRef =
     useRef<number | null>(null);
 
@@ -1664,6 +1684,60 @@ export default function Home() {
           null,
       }));
 
+    const {
+      data: resultadoData,
+      error: erroResultado,
+    } = await supabase.rpc(
+      "get_game_result_state",
+      {
+        p_game_id: gameId,
+      }
+    );
+
+    if (erroResultado) {
+      console.error(
+        "Erro ao carregar estado do resultado:",
+        erroResultado
+      );
+    } else {
+      const resultado =
+        Array.isArray(resultadoData)
+          ? resultadoData[0]
+          : resultadoData;
+
+      if (resultado) {
+        setEstadoResultado({
+          status:
+            resultado.result_status ===
+            "awaiting_result"
+              ? "awaiting_result"
+              : resultado.result_status ===
+                "finished"
+              ? "finished"
+              : "running",
+          dataFinalizacao:
+            resultado.finish_date ||
+            null,
+          finalistasIds:
+            Array.isArray(
+              resultado.finisher_player_ids
+            )
+              ? resultado.finisher_player_ids.map(
+                  Number
+                )
+              : [],
+          vencedoresIds:
+            Array.isArray(
+              resultado.winner_player_ids
+            )
+              ? resultado.winner_player_ids.map(
+                  Number
+                )
+              : [],
+        });
+      }
+    }
+
     const tarefasDoBanco =
       (
         tarefasData ||
@@ -2133,7 +2207,21 @@ export default function Home() {
       partida?.iniciadaEm
     );
 
-  const vencedor =
+  const vencedoresDoResultado =
+    estadoResultado.vencedoresIds
+      .map(
+        (id) =>
+          jogadores.find(
+            (jogador) =>
+              jogador.id === id
+          ) || null
+      )
+      .filter(
+        (jogador): jogador is Jogador =>
+          Boolean(jogador)
+      );
+
+  const vencedorLegado =
     partida?.vencedorJogadorId
       ? jogadores.find(
           (jogador) =>
@@ -2142,17 +2230,50 @@ export default function Home() {
         ) || null
       : null;
 
+  const vencedor =
+    vencedoresDoResultado.length === 1
+      ? vencedoresDoResultado[0]
+      : vencedorLegado;
+
+  const vitoriaCompartilhada =
+    vencedoresDoResultado.length > 1;
+
+  const aguardandoResultado =
+    estadoResultado.status ===
+    "awaiting_result";
+
+  const euChegueiAoFinalHoje =
+    Boolean(
+      jogadorAtualId &&
+        estadoResultado.finalistasIds.includes(
+          jogadorAtualId
+        )
+    );
+
   const partidaFinalizada =
     Boolean(
-      partida?.vencedorJogadorId &&
-        vencedor
+      vitoriaCompartilhada ||
+        (
+          estadoResultado.status ===
+            "finished" &&
+          vencedor
+        ) ||
+        (
+          partida?.vencedorJogadorId &&
+          vencedor
+        )
     );
 
   const euVenci =
     Boolean(
-      vencedor &&
-        vencedor.id ===
-          jogadorAtualId
+      vitoriaCompartilhada
+        ? jogadorAtualId &&
+            estadoResultado.vencedoresIds.includes(
+              jogadorAtualId
+            )
+        : vencedor &&
+            vencedor.id ===
+              jogadorAtualId
     );
 
   function nomeJogadorPorId(
@@ -2471,7 +2592,129 @@ export default function Home() {
           </div>
         )}
 
-        {partidaFinalizada && vencedor ? (
+        {aguardandoResultado && (
+          <section className="mb-5 overflow-hidden rounded-[28px] border-2 border-[#D9CCFF] bg-[#F7F4FF] shadow-[0_10px_30px_rgba(139,92,246,.08)]">
+            <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black tracking-[0.22em] text-[#8B5CF6]">
+                  RESULTADO PENDENTE
+                </p>
+
+                <h2 className="mt-2 text-xl font-black tracking-[-0.03em] text-[#1F2937] sm:text-2xl">
+                  {euChegueiAoFinalHoje
+                    ? "Você chegou ao final! 🏁"
+                    : "Alguém já chegou ao final hoje."}
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+                  {euChegueiAoFinalHoje
+                    ? "O dia ainda não terminou. Se outro jogador completar a corrida hoje, o DoToWin aplicará automaticamente os critérios de desempate."
+                    : "A corrida continua aberta até o fim do dia para que outros jogadores também possam chegar à última casa. Depois, o resultado será calculado automaticamente."}
+                </p>
+              </div>
+
+              <div className="shrink-0 rounded-[22px] bg-white px-5 py-4 text-center shadow-[0_6px_18px_rgba(15,23,42,.05)]">
+                <p className="text-[8px] font-black tracking-[0.18em] text-slate-400">
+                  FINALISTAS HOJE
+                </p>
+
+                <p className="mt-1 text-3xl font-black text-[#8B5CF6]">
+                  {estadoResultado.finalistasIds.length}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {partidaFinalizada &&
+        vitoriaCompartilhada ? (
+          <section className="mx-auto max-w-[980px]">
+            <div className="overflow-hidden rounded-[34px] bg-white shadow-[0_18px_54px_rgba(15,23,42,.08)]">
+              <div className="relative overflow-hidden bg-[#F1ECFF] px-5 py-8 text-center sm:px-8 sm:py-10">
+                <div className="mx-auto max-w-[250px]">
+                  <img
+                    src="/happy-iguana-vitoria.png"
+                    alt="Happy Iguana comemorando"
+                    className="h-auto w-full object-contain"
+                  />
+                </div>
+
+                <p className="mt-4 text-[10px] font-black tracking-[0.24em] text-[#8B5CF6]">
+                  EMPATE ABSOLUTO
+                </p>
+
+                <h1 className="mx-auto mt-3 max-w-2xl text-4xl font-black tracking-[-0.05em] text-[#1F2937] sm:text-5xl">
+                  VITÓRIA COMPARTILHADA!
+                </h1>
+
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
+                  Os critérios automáticos de desempate terminaram exatamente iguais. Por isso, esta corrida tem mais de um vencedor.
+                </p>
+              </div>
+
+              <div className="p-5 sm:p-8">
+                <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-2">
+                  {vencedoresDoResultado.map(
+                    (jogador) => (
+                      <div
+                        key={jogador.id}
+                        className="rounded-[26px] bg-[#F8FBFE] p-5"
+                      >
+                        <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">
+                          CAMPEÃO
+                        </p>
+
+                        <div className="mt-4 flex items-center gap-4">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
+                            <Peao
+                              cor={jogador.cor}
+                              avatar={jogador.avatar}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-xl font-black text-[#1F2937]">
+                              {jogador.nome}
+                            </p>
+
+                            <p className="mt-1 text-xs font-bold text-slate-400">
+                              {totalCasas} de {totalCasas} casas
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {partida?.premio && (
+                  <div className="mx-auto mt-5 max-w-3xl rounded-[28px] border-2 border-[#E1D5FF] bg-[#F7F4FF] p-5 text-center sm:p-7">
+                    <p className="text-[10px] font-black tracking-[0.22em] text-[#8B5CF6]">
+                      PRÊMIO DA VITÓRIA
+                    </p>
+
+                    <p className="mx-auto mt-3 max-w-2xl break-words text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">
+                      {partida.premio}
+                    </p>
+
+                    <p className="mx-auto mt-3 max-w-xl text-xs leading-relaxed text-slate-500">
+                      Como houve vitória compartilhada, vocês decidem juntos como dividir ou adaptar o prêmio.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mx-auto mt-6 flex max-w-3xl justify-center">
+                  <Link
+                    href="/partidas"
+                    className="flex items-center justify-center rounded-2xl bg-[#8B5CF6] px-7 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(139,92,246,.17)] transition hover:-translate-y-0.5"
+                  >
+                    Voltar às partidas
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : partidaFinalizada && vencedor ? (
           <section className="mx-auto max-w-[980px]">
             <div className="overflow-hidden rounded-[34px] bg-white shadow-[0_18px_54px_rgba(15,23,42,.08)]">
               <div className="relative overflow-hidden bg-[#F1ECFF] px-5 py-8 text-center sm:px-8 sm:py-10">
