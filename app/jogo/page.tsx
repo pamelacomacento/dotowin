@@ -1151,12 +1151,34 @@ export default function Home() {
     vencedoresIds: [],
   });
 
+  const [
+    regrasAbertas,
+    setRegrasAbertas,
+  ] = useState(false);
+
   const posicaoAnteriorRef =
     useRef<number | null>(null);
 
   useEffect(() => {
     carregarPartida();
   }, []);
+
+  useEffect(() => {
+    if (!partida?.id) {
+      return;
+    }
+
+    const chave =
+      `dotowin_rules_seen_${partida.id}`;
+
+    if (
+      !localStorage.getItem(
+        chave
+      )
+    ) {
+      setRegrasAbertas(true);
+    }
+  }, [partida?.id]);
 
   useEffect(() => {
     if (!partida?.id) {
@@ -1251,6 +1273,17 @@ export default function Home() {
       window.clearInterval(timer);
     };
   }, [partida?.id]);
+
+  function fecharRegras() {
+    if (partida?.id) {
+      localStorage.setItem(
+        `dotowin_rules_seen_${partida.id}`,
+        "1"
+      );
+    }
+
+    setRegrasAbertas(false);
+  }
 
   async function carregarEventos(
     gameId: number
@@ -1538,6 +1571,10 @@ export default function Home() {
         .eq(
           "game_id",
           gameId
+        )
+        .is(
+          "archived_at",
+          null
         ),
 
       supabase
@@ -2538,6 +2575,20 @@ export default function Home() {
                   "-----"}
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setRegrasAbertas(true)
+              }
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EAF8FB] text-sm font-black text-[#1594A3] transition hover:bg-[#DDF4F7] sm:h-auto sm:w-auto sm:px-4 sm:py-3 sm:text-xs"
+              aria-label="Como funciona o DoToWin"
+            >
+              <span className="sm:hidden">?</span>
+              <span className="hidden sm:inline">
+                Como funciona?
+              </span>
+            </button>
 
             <Link
               href="/"
@@ -3884,6 +3935,130 @@ export default function Home() {
           </>
         )}
       </div>
+
+
+      {regrasAbertas && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/35 p-3 backdrop-blur-sm sm:p-5">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[30px] bg-white shadow-[0_24px_80px_rgba(15,23,42,.25)]">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-100 bg-white px-5 py-5 sm:px-7">
+              <div>
+                <p className="text-[10px] font-black tracking-[0.22em] text-[#22C7D9]">
+                  REGRAS DO JOGO
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black tracking-[-0.04em] text-[#1F2937]">
+                  Como funciona o DoToWin?
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharRegras}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F5F8FC] text-sm font-black text-slate-400 transition hover:bg-slate-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5 sm:p-7">
+              <div className="rounded-[22px] bg-[#EAF8FB] p-4">
+                <p className="text-[9px] font-black tracking-[0.18em] text-[#1594A3]">
+                  OBJETIVO
+                </p>
+                <p className="mt-1 text-sm font-black">
+                  Chegar à última casa da corrida.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    COMO AVANÇAR
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Conclua uma tarefa, tire a foto naquele momento e envie. Quando outro jogador aprovar, você avança exatamente <strong>+1 casa</strong>.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    SEM SORTE
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Não existe dado nem movimento aleatório. Todo avanço vem de uma tarefa concluída e validada.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    APROVAÇÕES
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Você nunca pode aprovar ou rejeitar sua própria tarefa. Em partidas com 3 ou mais jogadores, o admin define se todos aprovam ou se somente o admin aprova.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    TAREFAS REJEITADAS
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Uma tarefa rejeitada pode ser refeita e enviada novamente. As rejeições também contam como critério de desempate.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    INÍCIO DA CORRIDA
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    A corrida só começa quando o administrador clicar em <strong>Começar partida</strong>, depois que os jogadores e tarefas estiverem prontos.
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                    EMPATE TÉCNICO
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Se duas ou mais pessoas chegarem ao final no mesmo dia, o resultado é definido automaticamente por desempenho.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[22px] bg-[#F7F4FF] p-5">
+                <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">
+                  DESEMPATE AUTOMÁTICO
+                </p>
+
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <p><strong>1.</strong> Maior sequência de dias ativos.</p>
+                  <p><strong>2.</strong> Menor número de tarefas rejeitadas.</p>
+                  <p><strong>3.</strong> Maior número de dias diferentes com tarefas aprovadas.</p>
+                  <p><strong>4.</strong> Persistindo empate absoluto, a vitória é compartilhada.</p>
+                </div>
+              </div>
+
+              <div className="rounded-[22px] bg-[#FFF8E7] p-4">
+                <p className="text-[9px] font-black tracking-[0.18em] text-[#B87C00]">
+                  REGRA DE OURO
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  O DoToWin premia ação e constância. Uma tarefa aprovada vale uma casa, sempre.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fecharRegras}
+                className="w-full rounded-2xl bg-[#22C7D9] px-6 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.18)]"
+              >
+                Entendi, vamos jogar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="fixed bottom-3 left-3 right-3 z-50 rounded-[24px] bg-white p-2 shadow-[0_14px_38px_rgba(15,23,42,.14)] lg:hidden">
         <div className="grid grid-cols-4 gap-1">

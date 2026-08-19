@@ -132,6 +132,16 @@ export default function PartidasPage() {
     setEntrandoPartida,
   ] = useState(false);
 
+  const [
+    partidaParaExcluir,
+    setPartidaParaExcluir,
+  ] = useState<Partida | null>(null);
+
+  const [
+    excluindoPartida,
+    setExcluindoPartida,
+  ] = useState(false);
+
   useEffect(() => {
     carregarPartidas();
   }, []);
@@ -663,6 +673,72 @@ export default function PartidasPage() {
     router.push("/jogo");
   }
 
+  async function excluirPartida() {
+    if (
+      !partidaParaExcluir ||
+      !partidaParaExcluir.souAdmin
+    ) {
+      return;
+    }
+
+    setExcluindoPartida(true);
+    setMensagemErro("");
+
+    const { error } =
+      await supabase.rpc(
+        "delete_game",
+        {
+          p_game_id:
+            partidaParaExcluir.id,
+        }
+      );
+
+    if (error) {
+      console.error(
+        "Erro ao excluir partida:",
+        error
+      );
+
+      setMensagemErro(
+        error.message ||
+          "Não foi possível excluir a partida."
+      );
+
+      setExcluindoPartida(false);
+      return;
+    }
+
+    const gameIdSalvo =
+      localStorage.getItem(
+        "dotowin_game_id"
+      );
+
+    if (
+      gameIdSalvo ===
+      String(
+        partidaParaExcluir.id
+      )
+    ) {
+      localStorage.removeItem(
+        "dotowin_game_id"
+      );
+    }
+
+    setPartidas(
+      (atuais) =>
+        atuais.filter(
+          (partida) =>
+            partida.id !==
+            partidaParaExcluir.id
+        )
+    );
+
+    setPartidaParaExcluir(
+      null
+    );
+    setExcluindoPartida(false);
+  }
+
   async function sair() {
     await supabase.auth.signOut();
 
@@ -1168,18 +1244,19 @@ export default function PartidasPage() {
                     );
 
                   return (
-                    <button
-                      key={
-                        partida.id
-                      }
-                      type="button"
-                      onClick={() =>
-                        abrirPartida(
-                          partida.id
-                        )
-                      }
-                      className="group rounded-[28px] bg-white p-5 text-left shadow-[0_10px_30px_rgba(15,23,42,.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(15,23,42,.08)] sm:p-6"
+                    <div
+                      key={partida.id}
+                      className="relative"
                     >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          abrirPartida(
+                            partida.id
+                          )
+                        }
+                        className="group w-full rounded-[28px] bg-white p-5 text-left shadow-[0_10px_30px_rgba(15,23,42,.05)] transition hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(15,23,42,.08)] sm:p-6"
+                      >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 items-start gap-4">
                           <div className="rounded-2xl bg-[#F8FBFE] p-3">
@@ -1291,6 +1368,21 @@ export default function PartidasPage() {
                         </span>
                       </div>
                     </button>
+
+                    {partida.souAdmin && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPartidaParaExcluir(
+                            partida
+                          )
+                        }
+                        className="absolute bottom-4 right-14 rounded-xl px-3 py-2 text-[10px] font-black text-red-400 transition hover:bg-red-50 hover:text-red-600 sm:bottom-5 sm:right-16"
+                      >
+                        Excluir
+                      </button>
+                    )}
+                    </div>
                   );
                 }
               )}
@@ -1375,6 +1467,54 @@ export default function PartidasPage() {
           </div>
         </section>
       </div>
+
+      {partidaParaExcluir && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[30px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,.22)] sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-black text-red-500">
+              ×
+            </div>
+
+            <p className="mt-5 text-[10px] font-black tracking-[0.2em] text-red-500">
+              EXCLUIR PARTIDA
+            </p>
+
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#1F2937]">
+              Excluir “{partidaParaExcluir.nome}”?
+            </h2>
+
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Isso apaga a partida, jogadores, tarefas, envios e histórico relacionados a ela. Essa ação não pode ser desfeita.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={excluindoPartida}
+                onClick={() =>
+                  setPartidaParaExcluir(
+                    null
+                  )
+                }
+                className="rounded-2xl bg-[#F5F8FC] px-5 py-3.5 text-sm font-black text-slate-500 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={excluindoPartida}
+                onClick={excluirPartida}
+                className="rounded-2xl bg-red-500 px-5 py-3.5 text-sm font-black text-white shadow-[0_10px_22px_rgba(239,68,68,.18)] disabled:opacity-50"
+              >
+                {excluindoPartida
+                  ? "Excluindo..."
+                  : "Sim, excluir partida"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

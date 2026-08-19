@@ -502,6 +502,21 @@ export default function TarefasPage() {
   ] = useState("");
 
   const [
+    mensagemSucesso,
+    setMensagemSucesso,
+  ] = useState("");
+
+  const [
+    tarefaParaRemover,
+    setTarefaParaRemover,
+  ] = useState<Tarefa | null>(null);
+
+  const [
+    removendoTarefa,
+    setRemovendoTarefa,
+  ] = useState(false);
+
+  const [
     tarefaEmAtualizacao,
     setTarefaEmAtualizacao,
   ] =
@@ -867,6 +882,10 @@ export default function TarefasPage() {
         .eq(
           "game_id",
           jogadorFormatado.gameId
+        )
+        .is(
+          "archived_at",
+          null
         )
         .order(
           "created_at",
@@ -1840,6 +1859,77 @@ export default function TarefasPage() {
     );
   }
 
+  async function removerOuArquivarTarefa() {
+    if (
+      !tarefaParaRemover ||
+      !jogadorAtual ||
+      !ehAdministrador
+    ) {
+      return;
+    }
+
+    setRemovendoTarefa(true);
+    setMensagemErro("");
+    setMensagemSucesso("");
+
+    const { data, error } =
+      await supabase.rpc(
+        "remove_or_archive_task",
+        {
+          p_task_id:
+            tarefaParaRemover.id,
+        }
+      );
+
+    if (error) {
+      console.error(
+        "Erro ao remover tarefa:",
+        error
+      );
+
+      setMensagemErro(
+        error.message ||
+          "Não foi possível remover a tarefa."
+      );
+
+      setRemovendoTarefa(false);
+      return;
+    }
+
+    const resultado =
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    const acao =
+      typeof resultado ===
+        "string"
+        ? resultado
+        : resultado?.action ||
+          resultado?.acao ||
+          "";
+
+    setMensagemSucesso(
+      acao === "archived"
+        ? "A tarefa já tinha histórico e foi arquivada. Ela não aparece mais na corrida, mas o histórico foi preservado."
+        : "Tarefa excluída."
+    );
+
+    setTarefas(
+      (atuais) =>
+        atuais.filter(
+          (tarefa) =>
+            tarefa.id !==
+            tarefaParaRemover.id
+        )
+    );
+
+    setTarefaParaRemover(
+      null
+    );
+    setRemovendoTarefa(false);
+  }
+
   const statusDasTarefas =
     tarefas.map(
       (tarefa) => {
@@ -2206,6 +2296,12 @@ export default function TarefasPage() {
         {mensagemErro && (
           <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-600">
             {mensagemErro}
+          </div>
+        )}
+
+        {mensagemSucesso && (
+          <div className="mb-5 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-700">
+            {mensagemSucesso}
           </div>
         )}
 
@@ -3028,6 +3124,20 @@ export default function TarefasPage() {
                             ✓ +1 casa
                           </div>
                         )}
+
+                        {ehAdministrador && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTarefaParaRemover(
+                                tarefa
+                              )
+                            }
+                            className="mt-2 w-full rounded-xl px-4 py-2.5 text-[10px] font-black text-red-400 transition hover:bg-red-50 hover:text-red-600 sm:w-auto"
+                          >
+                            Excluir tarefa
+                          </button>
+                        )}
                       </div>
                     </article>
                   );
@@ -3046,6 +3156,53 @@ export default function TarefasPage() {
           </p>
         </section>
       </div>
+
+
+      {tarefaParaRemover && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[30px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,.22)] sm:p-7">
+            <p className="text-[10px] font-black tracking-[0.2em] text-red-500">
+              REMOVER TAREFA
+            </p>
+
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.03em]">
+              Remover “{tarefaParaRemover.titulo}”?
+            </h2>
+
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Se ninguém tiver usado esta tarefa, ela será excluída. Se já existir envio ou aprovação, ela será arquivada para preservar o histórico da corrida.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={removendoTarefa}
+                onClick={() =>
+                  setTarefaParaRemover(
+                    null
+                  )
+                }
+                className="rounded-2xl bg-[#F5F8FC] px-5 py-3.5 text-sm font-black text-slate-500 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={removendoTarefa}
+                onClick={
+                  removerOuArquivarTarefa
+                }
+                className="rounded-2xl bg-red-500 px-5 py-3.5 text-sm font-black text-white disabled:opacity-50"
+              >
+                {removendoTarefa
+                  ? "Removendo..."
+                  : "Remover tarefa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] bg-white p-2 shadow-[0_14px_38px_rgba(15,23,42,.14)] lg:hidden">
         <div className="grid grid-cols-4 gap-1">
