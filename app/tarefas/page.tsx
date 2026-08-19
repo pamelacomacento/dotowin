@@ -25,6 +25,10 @@ type EstadoHorario =
   | "ainda_nao"
   | "encerrada";
 
+type TipoTarefa =
+  | "common"
+  | "personal";
+
 type Jogador = {
   id: number;
   nome: string;
@@ -41,6 +45,8 @@ type Tarefa = {
   repeatDays: number[];
   availableFrom: string | null;
   availableUntil: string | null;
+  tipo: TipoTarefa;
+  assignedPlayerId: number | null;
 };
 
 type Submissao = {
@@ -434,6 +440,14 @@ export default function TarefasPage() {
   const [tarefas, setTarefas] =
     useState<Tarefa[]>([]);
 
+  const [jogadoresPartida, setJogadoresPartida] =
+    useState<Jogador[]>([]);
+
+  const [metaComuns, setMetaComuns] = useState(0);
+  const [metaPessoais, setMetaPessoais] = useState(0);
+  const [configuracaoSalva, setConfiguracaoSalva] = useState(false);
+  const [salvandoConfiguracao, setSalvandoConfiguracao] = useState(false);
+
   const [submissoes, setSubmissoes] =
     useState<Submissao[]>([]);
 
@@ -465,6 +479,12 @@ export default function TarefasPage() {
 
   const [categoria, setCategoria] =
     useState("");
+
+  const [tipoTarefa, setTipoTarefa] =
+    useState<TipoTarefa>("common");
+
+  const [jogadorDestinoId, setJogadorDestinoId] =
+    useState<number | null>(null);
 
   const [
     modoRepeticao,
@@ -783,7 +803,7 @@ export default function TarefasPage() {
       supabase
         .from("games")
         .select(
-          "id, admin_profile_id"
+          "id, admin_profile_id, common_task_target, personal_task_target, started_at"
         )
         .eq(
           "id",
@@ -844,6 +864,19 @@ export default function TarefasPage() {
       administrador
     );
 
+    if (
+      Number.isInteger(partidaData.common_task_target) &&
+      Number.isInteger(partidaData.personal_task_target)
+    ) {
+      setMetaComuns(partidaData.common_task_target);
+      setMetaPessoais(partidaData.personal_task_target);
+      setConfiguracaoSalva(true);
+    } else {
+      setMetaComuns(0);
+      setMetaPessoais(0);
+      setConfiguracaoSalva(false);
+    }
+
     const jogadorFormatado: Jogador =
       {
         id: jogadorData.id,
@@ -864,20 +897,14 @@ export default function TarefasPage() {
     );
 
     const [
-      {
-        data: tarefasData,
-        error: erroTarefas,
-      },
-      {
-        data: submissoesData,
-        error:
-          erroSubmissoes,
-      },
+      { data: tarefasData, error: erroTarefas },
+      { data: submissoesData, error: erroSubmissoes },
+      { data: jogadoresData, error: erroJogadores },
     ] = await Promise.all([
       supabase
         .from("tasks")
         .select(
-          "id, title, category, repeat_mode, repeat_days, available_from, available_until, created_at, game_id"
+          "id, title, category, repeat_mode, repeat_days, available_from, available_until, created_at, game_id, scope, assigned_player_id"
         )
         .eq(
           "game_id",
@@ -900,10 +927,13 @@ export default function TarefasPage() {
         .select(
           "id, task_id, player_id, status, photo_url, occurrence_date"
         )
-        .eq(
-          "player_id",
-          jogadorFormatado.id
-        ),
+        .eq("player_id", jogadorFormatado.id),
+
+      supabase
+        .from("players")
+        .select("id, name, color, avatar, game_id")
+        .eq("game_id", jogadorFormatado.gameId)
+        .order("name", { ascending: true }),
     ]);
 
     if (erroTarefas) {
@@ -920,18 +950,16 @@ export default function TarefasPage() {
       return;
     }
 
-    if (
-      erroSubmissoes
-    ) {
-      console.error(
-        "Erro ao carregar submissões:",
-        erroSubmissoes
-      );
+    if (erroSubmissoes) {
+      console.error("Erro ao carregar submissões:", erroSubmissoes);
+      setMensagemErro("Não foi possível carregar seu progresso.");
+      setCarregando(false);
+      return;
+    }
 
-      setMensagemErro(
-        "Não foi possível carregar seu progresso."
-      );
-
+    if (erroJogadores) {
+      console.error("Erro ao carregar jogadores:", erroJogadores);
+      setMensagemErro("Não foi possível carregar os jogadores da partida.");
       setCarregando(false);
       return;
     }
@@ -974,6 +1002,8 @@ export default function TarefasPage() {
             availableUntil:
               item.available_until ||
               null,
+            tipo: item.scope === "personal" ? "personal" : "common",
+            assignedPlayerId: item.assigned_player_id || null,
           };
         }
       );
@@ -1002,6 +1032,16 @@ export default function TarefasPage() {
         })
       );
 
+    setJogadoresPartida(
+      (jogadoresData || []).map((item) => ({
+        id: item.id,
+        nome: item.name || "Jogador",
+        cor: item.color || "#38BDF8",
+        avatar: item.avatar || null,
+        gameId: item.game_id,
+      }))
+    );
+
     setTarefas(
       tarefasFormatadas
     );
@@ -1017,6 +1057,8 @@ export default function TarefasPage() {
   function limparFormulario() {
     setTitulo("");
     setCategoria("");
+    setTipoTarefa("common");
+    setJogadorDestinoId(null);
 
     setModoRepeticao(
       "once"
@@ -1090,6 +1132,38 @@ export default function TarefasPage() {
     router.refresh();
   }
 
+  async function salvarConfiguracaoTarefas() {
+    if (!jogadorAtual) return;
+
+    if (metaComuns === 0 && metaPessoais === 0) {
+      setMensagemErro("A partida precisa ter pelo menos uma tarefa por jogador.");
+      return;
+    }
+
+    setSalvandoConfiguracao(true);
+    setMensagemErro("");
+    setMensagemSucesso("");
+
+    const { error } = await supabase.rpc("configure_game_tasks", {
+      p_game_id: jogadorAtual.gameId,
+      p_common_target: metaComuns,
+      p_personal_target: metaPessoais,
+    });
+
+    if (error) {
+      console.error("Erro ao configurar tarefas:", error);
+      setMensagemErro(error.message || "Não foi possível salvar a configuração.");
+      setSalvandoConfiguracao(false);
+      return;
+    }
+
+    setConfiguracaoSalva(true);
+    setMensagemSucesso(
+      `Configuração salva: ${metaComuns} em comum + ${metaPessoais} pessoais por jogador.`
+    );
+    setSalvandoConfiguracao(false);
+  }
+
   async function adicionarTarefa() {
     if (!titulo.trim()) {
       setMensagemErro(
@@ -1106,9 +1180,27 @@ export default function TarefasPage() {
     }
 
     if (!ehAdministrador) {
-      setMensagemErro(
-        "Somente o administrador da partida pode criar tarefas."
-      );
+      setMensagemErro("Somente o administrador da partida pode criar tarefas.");
+      return;
+    }
+
+    if (!configuracaoSalva) {
+      setMensagemErro("Salve primeiro a configuração de tarefas da partida.");
+      return;
+    }
+
+    if (tipoTarefa === "common" && metaComuns === 0) {
+      setMensagemErro("Esta partida foi configurada sem tarefas em comum.");
+      return;
+    }
+
+    if (tipoTarefa === "personal" && metaPessoais === 0) {
+      setMensagemErro("Esta partida foi configurada sem tarefas pessoais.");
+      return;
+    }
+
+    if (tipoTarefa === "personal" && !jogadorDestinoId) {
+      setMensagemErro("Escolha para qual jogador esta tarefa será criada.");
       return;
     }
 
@@ -1172,6 +1264,10 @@ export default function TarefasPage() {
           game_id:
             jogadorAtual.gameId,
 
+          scope: tipoTarefa,
+          assigned_player_id:
+            tipoTarefa === "personal" ? jogadorDestinoId : null,
+
           repeat_mode:
             modoRepeticao,
 
@@ -1196,7 +1292,7 @@ export default function TarefasPage() {
               : null,
         })
         .select(
-          "id, title, category, repeat_mode, repeat_days, available_from, available_until"
+          "id, title, category, repeat_mode, repeat_days, available_from, available_until, scope, assigned_player_id"
         )
         .single();
 
@@ -1257,6 +1353,8 @@ export default function TarefasPage() {
         availableUntil:
           data.available_until ||
           null,
+        tipo: data.scope === "personal" ? "personal" : "common",
+        assignedPlayerId: data.assigned_player_id || null,
       };
 
     setTarefas(
@@ -1930,8 +2028,36 @@ export default function TarefasPage() {
     setRemovendoTarefa(false);
   }
 
+  const tarefasDoJogador = tarefas.filter(
+    (tarefa) =>
+      tarefa.tipo === "common" ||
+      tarefa.assignedPlayerId === jogadorAtual?.id
+  );
+
+  const tarefasPessoaisDeOutros = tarefas.filter(
+    (tarefa) =>
+      tarefa.tipo === "personal" &&
+      tarefa.assignedPlayerId !== jogadorAtual?.id
+  );
+
+  const tarefasComunsCriadas = tarefas.filter(
+    (tarefa) => tarefa.tipo === "common"
+  ).length;
+
+  const contarPessoais = (playerId: number) =>
+    tarefas.filter(
+      (tarefa) =>
+        tarefa.tipo === "personal" &&
+        tarefa.assignedPlayerId === playerId
+    ).length;
+
+  const nomeJogadorDaTarefa = (tarefa: Tarefa) =>
+    jogadoresPartida.find(
+      (jogador) => jogador.id === tarefa.assignedPlayerId
+    )?.nome || "Jogador";
+
   const statusDasTarefas =
-    tarefas.map(
+    tarefasDoJogador.map(
       (tarefa) => {
         const submissao =
           buscarSubmissao(
@@ -2305,6 +2431,85 @@ export default function TarefasPage() {
           </div>
         )}
 
+        {jogadorAtual && ehAdministrador && (
+          <section className="mb-5 rounded-[28px] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,.05)] sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-[10px] font-black tracking-[0.2em] text-[#8B5CF6]">CONFIGURAÇÃO DA PARTIDA</p>
+                <h2 className="mt-2 text-xl font-black">Quantas tarefas cada jogador terá?</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+                  Escolha de 0 a 10 tarefas em comum e de 0 a 10 tarefas pessoais por jogador. Todos começam com a mesma quantidade total.
+                </p>
+              </div>
+
+              <div className="rounded-[22px] bg-[#F7F4FF] px-5 py-4 text-center">
+                <p className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">TOTAL POR JOGADOR</p>
+                <p className="mt-1 text-3xl font-black text-[#1F2937]">{metaComuns + metaPessoais}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[22px] bg-[#EAF8FB] p-4">
+                <label className="text-[9px] font-black tracking-[0.18em] text-[#1594A3]">TAREFAS EM COMUM</label>
+                <select
+                  value={metaComuns}
+                  onChange={(event) => { setMetaComuns(Number(event.target.value)); setConfiguracaoSalva(false); }}
+                  className="mt-2 w-full rounded-2xl border-2 border-white bg-white px-4 py-3 text-sm font-black outline-none"
+                >
+                  {Array.from({ length: 11 }, (_, numero) => (
+                    <option key={numero} value={numero}>{numero}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-500">As mesmas tarefas aparecem para todos.</p>
+              </div>
+
+              <div className="rounded-[22px] bg-[#F7F4FF] p-4">
+                <label className="text-[9px] font-black tracking-[0.18em] text-[#8B5CF6]">TAREFAS PESSOAIS</label>
+                <select
+                  value={metaPessoais}
+                  onChange={(event) => { setMetaPessoais(Number(event.target.value)); setConfiguracaoSalva(false); }}
+                  className="mt-2 w-full rounded-2xl border-2 border-white bg-white px-4 py-3 text-sm font-black outline-none"
+                >
+                  {Array.from({ length: 11 }, (_, numero) => (
+                    <option key={numero} value={numero}>{numero}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-500">Cada jogador recebe essa quantidade de tarefas próprias.</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-bold text-slate-400">Ex.: 3 comuns + 1 pessoal = 4 tarefas para cada jogador.</p>
+              <button
+                type="button"
+                disabled={salvandoConfiguracao || (metaComuns === 0 && metaPessoais === 0)}
+                onClick={salvarConfiguracaoTarefas}
+                className="rounded-2xl bg-[#8B5CF6] px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {salvandoConfiguracao ? "Salvando..." : configuracaoSalva ? "Configuração salva" : "Salvar configuração"}
+              </button>
+            </div>
+
+            {configuracaoSalva && (
+              <div className="mt-5 rounded-[22px] border border-[#E8EEF5] bg-[#F8FBFE] p-4">
+                <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">PROGRESSO DA CRIAÇÃO</p>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="font-bold text-slate-600">Em comum</span>
+                    <span className="font-black text-[#1594A3]">{tarefasComunsCriadas}/{metaComuns}</span>
+                  </div>
+                  {metaPessoais > 0 && jogadoresPartida.map((jogador) => (
+                    <div key={jogador.id} className="flex items-center justify-between gap-4 text-sm">
+                      <span className="truncate font-bold text-slate-600">{jogador.nome}</span>
+                      <span className="font-black text-[#8B5CF6]">{contarPessoais(jogador.id)}/{metaPessoais}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {jogadorAtual && (
           <section className="mb-5 flex flex-col gap-3 rounded-[24px] bg-white p-4 shadow-[0_8px_26px_rgba(15,23,42,.05)] sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -2368,13 +2573,8 @@ export default function TarefasPage() {
                     NOVA TAREFA
                   </p>
 
-                  <h2 className="mt-2 text-xl font-black">
-                    Criar para todos
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Escolha quando esta tarefa deverá aparecer para os jogadores.
-                  </p>
+                  <h2 className="mt-2 text-xl font-black">Criar nova tarefa</h2>
+                  <p className="mt-1 text-sm text-slate-500">Escolha se ela será em comum ou pessoal e depois defina os detalhes.</p>
                 </div>
 
                 <button
@@ -2396,6 +2596,51 @@ export default function TarefasPage() {
               </div>
 
               <div className="mt-5 grid gap-5">
+                <div>
+                  <p className="text-[9px] font-black tracking-[0.18em] text-slate-400">TIPO</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      disabled={metaComuns === 0}
+                      onClick={() => { setTipoTarefa("common"); setJogadorDestinoId(null); }}
+                      className={`rounded-2xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-35 ${tipoTarefa === "common" ? "border-[#22C7D9] bg-[#EAF8FB]" : "border-[#E8EEF5] bg-[#F8FBFE]"}`}
+                    >
+                      <p className="text-sm font-black">Em comum</p>
+                      <p className="mt-1 text-xs text-slate-500">Para todos os jogadores.</p>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={metaPessoais === 0}
+                      onClick={() => {
+                        setTipoTarefa("personal");
+                        if (!jogadorDestinoId && jogadoresPartida.length > 0) setJogadorDestinoId(jogadoresPartida[0].id);
+                      }}
+                      className={`rounded-2xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-35 ${tipoTarefa === "personal" ? "border-[#8B5CF6] bg-[#F7F4FF]" : "border-[#E8EEF5] bg-[#F8FBFE]"}`}
+                    >
+                      <p className="text-sm font-black">Pessoal</p>
+                      <p className="mt-1 text-xs text-slate-500">Para um jogador específico.</p>
+                    </button>
+                  </div>
+                </div>
+
+                {tipoTarefa === "personal" && metaPessoais > 0 && (
+                  <div>
+                    <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">JOGADOR</label>
+                    <select
+                      value={jogadorDestinoId ?? ""}
+                      onChange={(event) => setJogadorDestinoId(Number(event.target.value))}
+                      className="mt-2 w-full rounded-2xl border-2 border-[#E8EEF5] bg-[#F8FBFE] px-4 py-4 text-sm font-bold outline-none transition focus:border-[#8B5CF6]"
+                    >
+                      <option value="">Escolha um jogador</option>
+                      {jogadoresPartida.map((jogador) => (
+                        <option key={jogador.id} value={jogador.id}>
+                          {jogador.nome} ({contarPessoais(jogador.id)}/{metaPessoais})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center gap-2">
                     <label className="text-[9px] font-black tracking-[0.18em] text-slate-400">
@@ -2865,7 +3110,7 @@ export default function TarefasPage() {
         {!carregando &&
           jogadorAtual && (
             <section className="space-y-3">
-              {tarefas.length ===
+              {tarefasDoJogador.length ===
                 0 && (
                 <div className="rounded-[28px] bg-white p-8 text-center shadow-[0_10px_30px_rgba(15,23,42,.05)]">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF8FB] text-2xl font-black text-[#22C7D9]">
@@ -2946,9 +3191,11 @@ export default function TarefasPage() {
                       <div className="min-w-0">
                         <div className="mb-3 flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-slate-400 shadow-sm">
-                            {
-                              tarefa.categoria
-                            }
+                            {tarefa.categoria}
+                          </span>
+
+                          <span className={`rounded-full px-2.5 py-1 text-[9px] font-black ${tarefa.tipo === "common" ? "bg-[#EAF8FB] text-[#1594A3]" : "bg-[#F7F4FF] text-[#8B5CF6]"}`}>
+                            {tarefa.tipo === "common" ? "EM COMUM" : "PESSOAL"}
                           </span>
 
                           <span
@@ -3157,6 +3404,24 @@ export default function TarefasPage() {
         </section>
       </div>
 
+
+        {!carregando && ehAdministrador && tarefasPessoaisDeOutros.length > 0 && (
+          <section className="mx-auto mt-6 max-w-[1100px] rounded-[28px] bg-white p-5 shadow-[0_10px_32px_rgba(15,23,42,.05)] sm:p-6">
+            <p className="text-[9px] font-black tracking-[0.2em] text-[#8B5CF6]">ADMINISTRAÇÃO</p>
+            <h2 className="mt-2 text-lg font-black">Tarefas pessoais dos outros jogadores</h2>
+            <p className="mt-1 text-sm text-slate-500">Elas não aparecem na sua lista de execução, mas ficam aqui para você gerenciar.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {tarefasPessoaisDeOutros.map((tarefa) => (
+                <div key={tarefa.id} className="rounded-[22px] bg-[#F8FBFE] p-4">
+                  <span className="rounded-full bg-[#F7F4FF] px-2.5 py-1 text-[8px] font-black text-[#8B5CF6]">PESSOAL • {nomeJogadorDaTarefa(tarefa)}</span>
+                  <p className="mt-3 font-black">{tarefa.titulo}</p>
+                  <p className="mt-1 text-xs text-slate-500">{tarefa.categoria} • {textoRepeticao(tarefa)}</p>
+                  <button type="button" onClick={() => setTarefaParaRemover(tarefa)} className="mt-3 rounded-xl px-3 py-2 text-[9px] font-black text-red-400 transition hover:bg-red-50 hover:text-red-600">Excluir</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
       {tarefaParaRemover && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">

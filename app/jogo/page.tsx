@@ -50,6 +50,8 @@ type TarefaContador = {
   repeat_days: number[] | null;
   available_from: string | null;
   available_until: string | null;
+  scope: "common" | "personal" | string | null;
+  assigned_player_id: number | null;
 };
 
 type SubmissaoJogador = {
@@ -1566,7 +1568,7 @@ export default function Home() {
       supabase
         .from("tasks")
         .select(
-          "id, repeat_mode, repeat_days, available_from, available_until"
+          "id, repeat_mode, repeat_days, available_from, available_until, scope, assigned_player_id"
         )
         .eq(
           "game_id",
@@ -1775,11 +1777,13 @@ export default function Home() {
       }
     }
 
-    const tarefasDoBanco =
-      (
-        tarefasData ||
-        []
-      ) as TarefaContador[];
+    const todasAsTarefasDoBanco = (tarefasData || []) as TarefaContador[];
+
+    const tarefasDoBanco = todasAsTarefasDoBanco.filter(
+      (tarefa) =>
+        tarefa.scope !== "personal" ||
+        tarefa.assigned_player_id === playerId
+    );
 
     const submissoesDoBanco =
       (
@@ -3976,7 +3980,7 @@ export default function Home() {
                     COMO AVANÇAR
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Conclua uma tarefa, tire a foto naquele momento e envie. Quando outro jogador aprovar, você avança exatamente <strong>+1 casa</strong>.
+                    Conclua uma tarefa da sua lista, tire a foto naquele momento e envie. Quando outro jogador aprovar, você avança exatamente <strong>+1 casa</strong>.
                   </p>
                 </div>
 
@@ -3985,7 +3989,7 @@ export default function Home() {
                     SEM SORTE
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Não existe dado nem movimento aleatório. Todo avanço vem de uma tarefa concluída e validada.
+                    A partida pode combinar tarefas <strong>em comum</strong> e tarefas <strong>pessoais</strong>. O admin define de 0 a 10 de cada tipo e todos começam com a mesma quantidade total.
                   </p>
                 </div>
 
