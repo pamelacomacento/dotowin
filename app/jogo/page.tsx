@@ -642,13 +642,13 @@ function TabuleiroDesktop({
                     key={
                       linhaIndex
                     }
-                    className="relative"
+                    className="relative h-[68px]"
                   >
                     <div className="absolute left-[3%] right-[3%] top-1/2 h-[48px] -translate-y-1/2 rounded-full bg-[#E6F0F8]" />
 
                     <div className="absolute left-[3%] right-[3%] top-1/2 h-[24px] -translate-y-1/2 rounded-full bg-white/30" />
 
-                    <div className="relative grid grid-cols-12 items-center gap-2">
+                    <div className="relative grid h-full grid-cols-12 items-center gap-2">
                       {slots.map(
                         (
                           numero,
@@ -690,20 +690,20 @@ function TabuleiroDesktop({
                         1 && (
                       <svg
                         aria-hidden="true"
-                        className="pointer-events-none absolute top-1/2 z-0 h-[96px] w-[84px] overflow-visible"
+                        className="pointer-events-none absolute top-1/2 z-0 h-[116px] w-[84px] overflow-visible"
                         style={{
                           left: invertida
                             ? "calc(3% - 84px)"
                             : "97%",
                         }}
-                        viewBox="0 0 84 96"
+                        viewBox="0 0 84 116"
                         preserveAspectRatio="none"
                       >
                         <path
                           d={
                             invertida
-                              ? "M 84 0 C 20 0 20 96 84 96"
-                              : "M 0 0 C 64 0 64 96 0 96"
+                              ? "M 84 0 C 20 0 20 116 84 116"
+                              : "M 0 0 C 64 0 64 116 0 116"
                           }
                           fill="none"
                           stroke="#E6F0F8"
@@ -962,11 +962,11 @@ function TabuleiroMobile({
                     key={
                       linhaIndex
                     }
-                    className="relative"
+                    className="relative h-[68px]"
                   >
                     <div className="absolute left-[4%] right-[4%] top-1/2 h-[42px] -translate-y-1/2 rounded-full bg-[#E6F0F8]" />
 
-                    <div className="relative grid grid-cols-4 items-center gap-4">
+                    <div className="relative grid h-full grid-cols-4 items-center gap-4">
                       {slots.map(
                         (
                           numero,
@@ -1008,20 +1008,20 @@ function TabuleiroMobile({
                         1 && (
                       <svg
                         aria-hidden="true"
-                        className="pointer-events-none absolute top-1/2 z-0 h-[82px] w-[72px] overflow-visible"
+                        className="pointer-events-none absolute top-1/2 z-0 h-[108px] w-[72px] overflow-visible"
                         style={{
                           left: invertida
                             ? "calc(4% - 72px)"
                             : "96%",
                         }}
-                        viewBox="0 0 72 82"
+                        viewBox="0 0 72 108"
                         preserveAspectRatio="none"
                       >
                         <path
                           d={
                             invertida
-                              ? "M 72 0 C 18 0 18 82 72 82"
-                              : "M 0 0 C 54 0 54 82 0 82"
+                              ? "M 72 0 C 18 0 18 108 72 108"
+                              : "M 0 0 C 54 0 54 108 0 108"
                           }
                           fill="none"
                           stroke="#E6F0F8"
