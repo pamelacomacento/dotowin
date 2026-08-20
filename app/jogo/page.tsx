@@ -689,16 +689,31 @@ function TabuleiroDesktop({
                       linhas.length -
                         1 && (
                       <div
-                        className={`absolute top-1/2 h-[108px] w-[78px] border-y-[48px] border-[#E6F0F8] ${
-                          invertida
-                            ? "-left-[30px] rounded-l-full border-l-[48px]"
-                            : "-right-[30px] rounded-r-full border-r-[48px]"
-                        }`}
+                        className="pointer-events-none absolute top-[calc(50%-24px)] z-0 h-[144px] w-[72px] overflow-hidden"
                         style={{
-                          transform:
-                            "translateY(16px)",
+                          left: invertida
+                            ? "calc(3% - 72px)"
+                            : "97%",
                         }}
-                      />
+                      >
+                        <div
+                          className="absolute top-0 h-[144px] w-[144px] rounded-full bg-[#E6F0F8]"
+                          style={{
+                            left: invertida
+                              ? "0px"
+                              : "-72px",
+                          }}
+                        />
+
+                        <div
+                          className="absolute top-[48px] h-[48px] w-[48px] rounded-full bg-[#FBFDFE]"
+                          style={{
+                            left: invertida
+                              ? "48px"
+                              : "-24px",
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
                 );
@@ -993,16 +1008,31 @@ function TabuleiroMobile({
                       linhas.length -
                         1 && (
                       <div
-                        className={`absolute top-1/2 h-[82px] w-[58px] border-y-[42px] border-[#E6F0F8] ${
-                          invertida
-                            ? "-left-[28px] rounded-l-full border-l-[42px]"
-                            : "-right-[28px] rounded-r-full border-r-[42px]"
-                        }`}
+                        className="pointer-events-none absolute top-[calc(50%-21px)] z-0 h-[126px] w-[63px] overflow-hidden"
                         style={{
-                          transform:
-                            "translateY(15px)",
+                          left: invertida
+                            ? "calc(4% - 63px)"
+                            : "96%",
                         }}
-                      />
+                      >
+                        <div
+                          className="absolute top-0 h-[126px] w-[126px] rounded-full bg-[#E6F0F8]"
+                          style={{
+                            left: invertida
+                              ? "0px"
+                              : "-63px",
+                          }}
+                        />
+
+                        <div
+                          className="absolute top-[42px] h-[42px] w-[42px] rounded-full bg-[#FBFDFE]"
+                          style={{
+                            left: invertida
+                              ? "42px"
+                              : "-21px",
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
                 );
