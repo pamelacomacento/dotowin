@@ -688,32 +688,31 @@ function TabuleiroDesktop({
                     {linhaIndex <
                       linhas.length -
                         1 && (
-                      <div
-                        className="pointer-events-none absolute top-[calc(50%-24px)] z-0 h-[144px] w-[72px] overflow-hidden"
+                      <svg
+                        aria-hidden="true"
+                        className="pointer-events-none absolute top-1/2 z-0 h-[96px] w-[84px] overflow-visible"
                         style={{
                           left: invertida
-                            ? "calc(3% - 72px)"
+                            ? "calc(3% - 84px)"
                             : "97%",
                         }}
+                        viewBox="0 0 84 96"
+                        preserveAspectRatio="none"
                       >
-                        <div
-                          className="absolute top-0 h-[144px] w-[144px] rounded-full bg-[#E6F0F8]"
-                          style={{
-                            left: invertida
-                              ? "0px"
-                              : "-72px",
-                          }}
+                        <path
+                          d={
+                            invertida
+                              ? "M 84 0 C 20 0 20 96 84 96"
+                              : "M 0 0 C 64 0 64 96 0 96"
+                          }
+                          fill="none"
+                          stroke="#E6F0F8"
+                          strokeWidth="48"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
                         />
-
-                        <div
-                          className="absolute top-[48px] h-[48px] w-[48px] rounded-full bg-[#FBFDFE]"
-                          style={{
-                            left: invertida
-                              ? "48px"
-                              : "-24px",
-                          }}
-                        />
-                      </div>
+                      </svg>
                     )}
                   </div>
                 );
@@ -1007,32 +1006,31 @@ function TabuleiroMobile({
                     {linhaIndex <
                       linhas.length -
                         1 && (
-                      <div
-                        className="pointer-events-none absolute top-[calc(50%-21px)] z-0 h-[126px] w-[63px] overflow-hidden"
+                      <svg
+                        aria-hidden="true"
+                        className="pointer-events-none absolute top-1/2 z-0 h-[82px] w-[72px] overflow-visible"
                         style={{
                           left: invertida
-                            ? "calc(4% - 63px)"
+                            ? "calc(4% - 72px)"
                             : "96%",
                         }}
+                        viewBox="0 0 72 82"
+                        preserveAspectRatio="none"
                       >
-                        <div
-                          className="absolute top-0 h-[126px] w-[126px] rounded-full bg-[#E6F0F8]"
-                          style={{
-                            left: invertida
-                              ? "0px"
-                              : "-63px",
-                          }}
+                        <path
+                          d={
+                            invertida
+                              ? "M 72 0 C 18 0 18 82 72 82"
+                              : "M 0 0 C 54 0 54 82 0 82"
+                          }
+                          fill="none"
+                          stroke="#E6F0F8"
+                          strokeWidth="42"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
                         />
-
-                        <div
-                          className="absolute top-[42px] h-[42px] w-[42px] rounded-full bg-[#FBFDFE]"
-                          style={{
-                            left: invertida
-                              ? "42px"
-                              : "-21px",
-                          }}
-                        />
-                      </div>
+                      </svg>
                     )}
                   </div>
                 );
