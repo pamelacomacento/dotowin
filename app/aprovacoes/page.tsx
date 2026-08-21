@@ -129,6 +129,16 @@ function formatarHorarioEnvio(createdAt: string) {
   return `Enviada em ${diaBrasil} às ${horaBrasil}`;
 }
 
+function imagemVeioDaGaleria(
+  photoUrl: string | null
+) {
+  return Boolean(
+    photoUrl?.includes(
+      "/gallery-task-"
+    )
+  );
+}
+
 export default function AprovacoesPage() {
   const router = useRouter();
 
@@ -1089,6 +1099,14 @@ export default function AprovacoesPage() {
                               <span className="rounded-full bg-[#FFF0C7] px-2.5 py-1 text-[9px] font-black text-[#B87C00]">
                                 Aguardando aprovação
                               </span>
+
+                              {imagemVeioDaGaleria(
+                                submissao.photoUrl
+                              ) && (
+                                <span className="rounded-full bg-[#F7F4FF] px-2.5 py-1 text-[9px] font-black text-[#8B5CF6]">
+                                  Imagem da galeria
+                                </span>
+                              )}
                             </div>
 
                             <div className="mt-5 flex items-center gap-3">
@@ -1130,7 +1148,7 @@ export default function AprovacoesPage() {
                               </h2>
 
                               <p className="mt-3 text-sm leading-relaxed text-slate-500">
-                                Confira a foto com atenção. Se ela comprovar a tarefa,{" "}
+                                Confira a imagem com atenção. Se ela comprovar a tarefa,{" "}
                                 <strong className="text-[#1F2937]">
                                   {submissao.jogadorNome}
                                 </strong>{" "}

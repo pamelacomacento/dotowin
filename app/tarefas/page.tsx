@@ -558,6 +558,13 @@ export default function TarefasPage() {
       null
     );
 
+  const [
+    origemFoto,
+    setOrigemFoto,
+  ] = useState<
+    "camera" | "gallery" | null
+  >(null);
+
   const [agora, setAgora] =
     useState(() =>
       Date.now()
@@ -570,6 +577,11 @@ export default function TarefasPage() {
 
   const canvasRef =
     useRef<HTMLCanvasElement | null>(
+      null
+    );
+
+  const galeriaInputRef =
+    useRef<HTMLInputElement | null>(
       null
     );
 
@@ -1523,6 +1535,10 @@ export default function TarefasPage() {
     setFotoPreview(
       null
     );
+
+    setOrigemFoto(
+      null
+    );
   }
 
   function fecharCamera() {
@@ -1632,11 +1648,85 @@ export default function TarefasPage() {
           preview
         );
 
+        setOrigemFoto(
+          "camera"
+        );
+
         pararCamera();
       },
       "image/jpeg",
       0.9
     );
+  }
+
+  function abrirGaleria() {
+    pararCamera();
+
+    galeriaInputRef.current?.click();
+  }
+
+  function selecionarImagemGaleria(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const arquivo =
+      event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!arquivo) {
+      return;
+    }
+
+    if (
+      !arquivo.type.startsWith(
+        "image/"
+      )
+    ) {
+      setMensagemErro(
+        "Escolha uma imagem válida."
+      );
+      return;
+    }
+
+    const limiteBytes =
+      12 * 1024 * 1024;
+
+    if (
+      arquivo.size >
+      limiteBytes
+    ) {
+      setMensagemErro(
+        "A imagem é muito grande. Escolha um arquivo de até 12 MB."
+      );
+      return;
+    }
+
+    if (fotoPreview) {
+      URL.revokeObjectURL(
+        fotoPreview
+      );
+    }
+
+    pararCamera();
+
+    const preview =
+      URL.createObjectURL(
+        arquivo
+      );
+
+    setFotoCapturada(
+      arquivo
+    );
+
+    setFotoPreview(
+      preview
+    );
+
+    setOrigemFoto(
+      "gallery"
+    );
+
+    setMensagemErro("");
   }
 
   async function tirarOutraFoto() {
@@ -1652,7 +1742,7 @@ export default function TarefasPage() {
       !jogadorAtual
     ) {
       setMensagemErro(
-        "Nenhuma foto foi capturada."
+        "Nenhuma imagem foi selecionada."
       );
 
       return;
@@ -1710,8 +1800,32 @@ export default function TarefasPage() {
 
     setMensagemErro("");
 
+    const tipoArquivo =
+      fotoCapturada.type ||
+      "image/jpeg";
+
+    const extensao =
+      tipoArquivo.includes(
+        "png"
+      )
+        ? "png"
+        : tipoArquivo.includes(
+            "webp"
+          )
+        ? "webp"
+        : tipoArquivo.includes(
+            "gif"
+          )
+        ? "gif"
+        : "jpg";
+
+    const prefixoOrigem =
+      origemFoto === "gallery"
+        ? "gallery"
+        : "camera";
+
     const nomeArquivo =
-      `task-${tarefa.id}-player-${jogadorAtual.id}-${Date.now()}.jpg`;
+      `${prefixoOrigem}-task-${tarefa.id}-player-${jogadorAtual.id}-${Date.now()}.${extensao}`;
 
     const caminhoArquivo =
       `tasks/${nomeArquivo}`;
@@ -1729,7 +1843,7 @@ export default function TarefasPage() {
               "3600",
             upsert: false,
             contentType:
-              "image/jpeg",
+              tipoArquivo,
           }
         );
 
@@ -1993,6 +2107,16 @@ export default function TarefasPage() {
         className="hidden"
       />
 
+      <input
+        ref={galeriaInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={
+          selecionarImagemGaleria
+        }
+      />
+
       {cameraAberta &&
         tarefaSelecionada && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/90 p-3 backdrop-blur-md">
@@ -2068,7 +2192,12 @@ export default function TarefasPage() {
                     src={
                       fotoPreview
                     }
-                    alt="Foto capturada agora"
+                    alt={
+                      origemFoto ===
+                      "gallery"
+                        ? "Imagem escolhida da galeria"
+                        : "Foto capturada agora"
+                    }
                     className="h-full max-h-[65vh] w-full object-contain"
                   />
                 )}
@@ -2078,30 +2207,52 @@ export default function TarefasPage() {
                 {!fotoPreview ? (
                   <>
                     <p className="mb-4 text-center text-xs text-slate-500">
-                      Tire a foto agora para comprovar a tarefa.
+                      Comprove a tarefa com uma foto tirada agora ou envie uma imagem da galeria, incluindo prints da tela.
                     </p>
 
-                    <button
-                      onClick={
-                        tirarFoto
-                      }
-                      disabled={
-                        iniciandoCamera
-                      }
-                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.2)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white">
-                        ●
-                      </span>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        onClick={
+                          tirarFoto
+                        }
+                        disabled={
+                          iniciandoCamera
+                        }
+                        className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#22C7D9] px-5 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(34,199,217,.2)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white">
+                          ●
+                        </span>
 
-                      TIRAR FOTO
-                    </button>
+                        TIRAR FOTO
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={
+                          abrirGaleria
+                        }
+                        disabled={
+                          iniciandoCamera
+                        }
+                        className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#F7F4FF] px-5 py-4 text-sm font-black text-[#8B5CF6] transition hover:-translate-y-0.5 hover:bg-[#F0EAFF] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="text-lg">
+                          ▣
+                        </span>
+
+                        GALERIA / PRINT
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <button
                       onClick={
-                        tirarOutraFoto
+                        origemFoto ===
+                        "gallery"
+                          ? abrirGaleria
+                          : tirarOutraFoto
                       }
                       disabled={
                         tarefaEmAtualizacao ===
@@ -2109,7 +2260,10 @@ export default function TarefasPage() {
                       }
                       className="rounded-2xl bg-[#F5F8FC] px-5 py-4 text-sm font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
                     >
-                      TIRAR OUTRA
+                      {origemFoto ===
+                      "gallery"
+                        ? "ESCOLHER OUTRA"
+                        : "TIRAR OUTRA"}
                     </button>
 
                     <button
@@ -2125,13 +2279,16 @@ export default function TarefasPage() {
                       {tarefaEmAtualizacao ===
                       tarefaSelecionada.id
                         ? "ENVIANDO..."
+                        : origemFoto ===
+                          "gallery"
+                        ? "USAR IMAGEM"
                         : "USAR FOTO"}
                     </button>
                   </div>
                 )}
 
                 <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
-                  A comprovação precisa ser registrada pela câmera neste momento.
+                  Imagens escolhidas da galeria serão identificadas para quem fizer a aprovação.
                 </p>
               </div>
             </div>
